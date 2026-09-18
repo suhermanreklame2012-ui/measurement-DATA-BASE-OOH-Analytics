@@ -59,6 +59,7 @@ export interface MediaSpot {
   updatedAt: string;
   notes?: string;
   ownerEmail?: string; // e.g. suherman.reklame2012@gmail.com
+  imageUrl?: string; // Foto lokasi/konstruksi
 }
 
 export interface NotificationLog {

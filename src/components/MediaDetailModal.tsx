@@ -225,37 +225,45 @@ ${savingsNote}
         <div className="p-6 overflow-y-auto space-y-6 text-xs text-slate-700">
           
           {/* Simulated Media Display Visual Box */}
-          <div className="relative w-full h-44 rounded-xl overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 flex flex-col items-center justify-center p-4 text-center border border-slate-700 shadow-inner">
-            {isDooh ? (
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-950/80 border border-purple-500/50 text-purple-300 text-[11px] font-semibold animate-pulse">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                  LED Digital Video Wall Display
+          <div 
+            className="relative w-full h-44 rounded-xl overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 flex flex-col items-center justify-center p-4 text-center border border-slate-700 shadow-inner bg-cover bg-center"
+            style={spot.imageUrl ? { backgroundImage: `url(${spot.imageUrl})` } : {}}
+          >
+            {/* Dark overlay for readability if image exists */}
+            {spot.imageUrl && <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"></div>}
+            
+            <div className="relative z-10 w-full">
+              {isDooh ? (
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-950/80 border border-purple-500/50 text-purple-300 text-[11px] font-semibold animate-pulse">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    LED Digital Video Wall Display
+                  </div>
+                  <div className="text-white font-bold text-lg tracking-wide drop-shadow-md">
+                    {spot.name}
+                  </div>
+                  <div className="text-xs text-slate-300 drop-shadow-md">
+                    {spot.size} • {spot.spotsPerDay || 540} Spot Tayang/Hari • Durasi {spot.loopDurationSec || 15} Detik
+                  </div>
                 </div>
-                <div className="text-white font-bold text-lg tracking-wide">
-                  {spot.name}
+              ) : (
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] font-semibold">
+                    <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                    Konstruksi {spot.mediaType}
+                  </div>
+                  <div className="text-white font-bold text-lg tracking-wide drop-shadow-md">
+                    {spot.name}
+                  </div>
+                  <div className="text-xs text-slate-300 drop-shadow-md">
+                    Ukuran {spot.size} ({spot.layout}) • Pencahayaan {spot.lighting || 'Frontlite'}
+                  </div>
                 </div>
-                <div className="text-xs text-slate-400">
-                  {spot.size} • {spot.spotsPerDay || 540} Spot Tayang/Hari • Durasi {spot.loopDurationSec || 15} Detik
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] font-semibold">
-                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                  Konstruksi {spot.mediaType}
-                </div>
-                <div className="text-white font-bold text-lg tracking-wide">
-                  {spot.name}
-                </div>
-                <div className="text-xs text-slate-400">
-                  Ukuran {spot.size} ({spot.layout}) • Pencahayaan {spot.lighting || 'Frontlite'}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Bottom Tag */}
-            <div className="absolute bottom-2 right-3 text-[10px] text-slate-500 font-mono">
+            <div className="absolute bottom-2 right-3 z-10 text-[10px] text-slate-300 font-mono drop-shadow-md">
               Koordinat: {spot.coordinates.lat}, {spot.coordinates.lng}
             </div>
           </div>

@@ -30,6 +30,7 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
   const [trafficDensity, setTrafficDensity] = useState<TrafficDensity>(existingSpot?.trafficDensity || 'Padat');
   const [lat, setLat] = useState<number>(existingSpot?.coordinates.lat || -6.9175);
   const [lng, setLng] = useState<number>(existingSpot?.coordinates.lng || 107.6191);
+  const [imageUrl, setImageUrl] = useState<string>(existingSpot?.imageUrl || '');
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [aiWarning, setAiWarning] = useState<string | null>(null);
 
@@ -78,7 +79,8 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
       visibilityScore: category === 'DOOH_DIGITAL' ? 98 : 92,
       coordinates: { lat, lng },
       lighting: category === 'DOOH_DIGITAL' ? 'LED Digital' : mediaType.includes('Backlite') ? 'Backlite' : 'Frontlite',
-      updatedAt: new Date().toISOString().split('T')[0]
+      updatedAt: new Date().toISOString().split('T')[0],
+      imageUrl: imageUrl.trim() || undefined
     };
 
     // AI Security & Integrity Audit
@@ -335,6 +337,20 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
                 <option value="0">Tersewa (Sold Out)</option>
               </select>
             </div>
+          </div>
+
+          {/* Foto Konstruksi */}
+          <div>
+            <label className="font-semibold text-slate-800 block mb-1">
+              URL Foto Lokasi / Konstruksi (Opsional):
+            </label>
+            <input
+              type="url"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://example.com/foto-lokasi.jpg"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500"
+            />
           </div>
 
           {/* AI Security Alert Warning */}

@@ -471,6 +471,11 @@ export default function App() {
         onClose={() => setSelectedSpot(null)}
         onToggleAvailability={handleToggleAvailability}
         onOpenAiProposal={(chosenSpot) => handleOpenAiProposal([chosenSpot])}
+        onEditSpot={(chosenSpot) => {
+          setSelectedSpot(null);
+          setSpotToEdit(chosenSpot);
+          setIsAddSpotModalOpen(true);
+        }}
       />
 
       <AddEditSpotModal

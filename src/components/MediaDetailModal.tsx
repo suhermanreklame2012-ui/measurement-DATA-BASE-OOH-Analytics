@@ -36,22 +36,26 @@ import { calculateCampaignPricing, calculatePotentialRoi } from '../utils/pricin
 import { TECHNICAL_NOTES } from '../data/spotsData';
 import { SpotQrCodeGenerator } from './SpotQrCodeGenerator';
 import { SpotRoiCalculator } from './SpotRoiCalculator';
+import { ConstructionPhotoCarousel } from './ConstructionPhotoCarousel';
 import { googleSignIn, getAccessToken } from '../services/googleAuthService';
 import { createCalendarEvent } from '../services/googleCalendarService';
 import { addNotification } from '../services/storageService';
+import { formatImageUrl } from '../utils/imageUtils';
 
 interface MediaDetailModalProps {
   spot: MediaSpot | null;
   onClose: () => void;
   onToggleAvailability: (spotId: string) => void;
   onOpenAiProposal?: (spot: MediaSpot) => void;
+  onEditSpot?: (spot: MediaSpot) => void;
 }
 
 export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
   spot,
   onClose,
   onToggleAvailability,
-  onOpenAiProposal
+  onOpenAiProposal,
+  onEditSpot
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [showQrCode, setShowQrCode] = useState<boolean>(false);
@@ -61,6 +65,16 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
   );
   const [isBookingCalendar, setIsBookingCalendar] = useState<boolean>(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+
+  const spotPhotos = useMemo(() => {
+    if (spot?.imageUrls && spot.imageUrls.length > 0) {
+      return spot.imageUrls.filter(p => p && p.trim().length > 0);
+    }
+    if (spot?.imageUrl) {
+      return [spot.imageUrl];
+    }
+    return [];
+  }, [spot?.imageUrls, spot?.imageUrl]);
 
   const activePricing = useMemo(() => {
     if (!spot) return { days: 0, totalPrice: 0, savingsAmount: 0, undiscountedPrice: 0, effectiveMonthlyRate: 0 };
@@ -227,10 +241,10 @@ ${savingsNote}
           {/* Simulated Media Display Visual Box */}
           <div 
             className="relative w-full h-44 rounded-xl overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 flex flex-col items-center justify-center p-4 text-center border border-slate-700 shadow-inner bg-cover bg-center"
-            style={spot.imageUrl ? { backgroundImage: `url(${spot.imageUrl})` } : {}}
+            style={spotPhotos.length > 0 ? { backgroundImage: `url(${formatImageUrl(spotPhotos[0])})` } : {}}
           >
             {/* Dark overlay for readability if image exists */}
-            {spot.imageUrl && <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"></div>}
+            {spotPhotos.length > 0 && <div className="absolute inset-0 bg-slate-900/65 backdrop-blur-[2px]"></div>}
             
             <div className="relative z-10 w-full">
               {isDooh ? (
@@ -267,6 +281,15 @@ ${savingsNote}
               Koordinat: {spot.coordinates.lat}, {spot.coordinates.lng}
             </div>
           </div>
+
+          {/* Dedicated Interactive Construction Photos Carousel */}
+          <ConstructionPhotoCarousel
+            photos={spotPhotos}
+            spotTitle={spot.name}
+            spotCategory={spot.category}
+            spotSize={spot.size}
+            onOpenEdit={onEditSpot ? () => onEditSpot(spot) : undefined}
+          />
 
           {/* Field Agent QR Code Generator Section (WhatsApp Deep Link) */}
           {showQrCode ? (

@@ -59,7 +59,8 @@ export interface MediaSpot {
   updatedAt: string;
   notes?: string;
   ownerEmail?: string; // e.g. suherman.reklame2012@gmail.com
-  imageUrl?: string; // Foto lokasi/konstruksi
+  imageUrl?: string; // Foto lokasi/konstruksi utama (backward compatibility)
+  imageUrls?: string[]; // Daftar foto konstruksi / lapangan / Google Drive
 }
 
 export interface NotificationLog {

@@ -1,8 +1,26 @@
-import React, { useState } from 'react';
-import { X, PlusCircle, MapPin, Building, DollarSign, Layers, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { 
+  X, 
+  PlusCircle, 
+  MapPin, 
+  Building, 
+  DollarSign, 
+  Layers, 
+  ShieldCheck, 
+  Sparkles, 
+  AlertCircle,
+  UploadCloud,
+  Link2,
+  Plus,
+  Trash2,
+  Image as ImageIcon,
+  HardDrive,
+  Star
+} from 'lucide-react';
 import { MediaSpot, MediaCategory, MediaType, LocationType, TrafficDensity } from '../types/ooh';
 import { addNotification } from '../services/storageService';
 import { auditSpotWithAI } from '../services/aiSecurityService';
+import { formatImageUrl, getPhotoSourceLabel, isGoogleDriveUrl } from '../utils/imageUtils';
 
 interface AddEditSpotModalProps {
   isOpen: boolean;
@@ -30,9 +48,60 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
   const [trafficDensity, setTrafficDensity] = useState<TrafficDensity>(existingSpot?.trafficDensity || 'Padat');
   const [lat, setLat] = useState<number>(existingSpot?.coordinates.lat || -6.9175);
   const [lng, setLng] = useState<number>(existingSpot?.coordinates.lng || 107.6191);
-  const [imageUrl, setImageUrl] = useState<string>(existingSpot?.imageUrl || '');
+  
+  // Store array of construction photo URLs / Drive links
+  const [imageUrls, setImageUrls] = useState<string[]>(() => {
+    if (existingSpot?.imageUrls && existingSpot.imageUrls.length > 0) {
+      return [...existingSpot.imageUrls];
+    }
+    if (existingSpot?.imageUrl) {
+      return [existingSpot.imageUrl];
+    }
+    return [];
+  });
+  const [urlInput, setUrlInput] = useState<string>('');
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [aiWarning, setAiWarning] = useState<string | null>(null);
+
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (validFiles.length === 0) return;
+
+    validFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        if (result) {
+          setImageUrls(prev => [...prev, result]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleAddUrl = () => {
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    setImageUrls(prev => [...prev, trimmed]);
+    setUrlInput('');
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setImageUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSetPrimary = (index: number) => {
+    if (index === 0) return;
+    setImageUrls(prev => {
+      const target = prev[index];
+      const filtered = prev.filter((_, i) => i !== index);
+      return [target, ...filtered];
+    });
+  };
 
   if (!isOpen) return null;
 
@@ -52,6 +121,8 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
     const impressionMultiplier = category === 'DOOH_DIGITAL' ? 2.3 : 1.55;
     const dailyTraffic = trafficBase + Math.floor(Math.random() * 10000);
     const dailyImpressions = Math.round(dailyTraffic * impressionMultiplier);
+
+    const validImageUrls = imageUrls.map(u => u.trim()).filter(u => u.length > 0);
 
     const rawSpot: Partial<MediaSpot> = {
       id: existingSpot?.id || `NEW-${Date.now().toString().slice(-4)}`,
@@ -80,7 +151,8 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
       coordinates: { lat, lng },
       lighting: category === 'DOOH_DIGITAL' ? 'LED Digital' : mediaType.includes('Backlite') ? 'Backlite' : 'Frontlite',
       updatedAt: new Date().toISOString().split('T')[0],
-      imageUrl: imageUrl.trim() || undefined
+      imageUrl: validImageUrls[0] || undefined,
+      imageUrls: validImageUrls
     };
 
     // AI Security & Integrity Audit
@@ -339,18 +411,173 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
             </div>
           </div>
 
-          {/* Foto Konstruksi */}
-          <div>
-            <label className="font-semibold text-slate-800 block mb-1">
-              URL Foto Lokasi / Konstruksi (Opsional):
-            </label>
-            <input
-              type="url"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://example.com/foto-lokasi.jpg"
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500"
-            />
+          {/* Foto Konstruksi & Google Drive Links */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-slate-800 text-xs flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-emerald-600" />
+                Foto Konstruksi & Dokumentasi Lapangan (Opsional):
+              </label>
+              <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                {imageUrls.length} Foto Ditambahkan
+              </span>
+            </div>
+
+            {/* Drag & Drop File-Input-like Zone */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                handleFileSelect(e.dataTransfer.files);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
+                isDragging 
+                  ? 'border-emerald-500 bg-emerald-50/60' 
+                  : 'border-slate-300 hover:border-emerald-400 bg-slate-50/50 hover:bg-slate-50'
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={(e) => handleFileSelect(e.target.files)}
+                className="hidden"
+              />
+              <div className="flex flex-col items-center justify-center gap-1.5">
+                <div className="w-9 h-9 rounded-full bg-emerald-100/80 text-emerald-700 flex items-center justify-center">
+                  <UploadCloud className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div className="text-xs font-semibold text-slate-800">
+                  Klik untuk pilih file foto atau seret (drag & drop) ke sini
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  Mendukung JPG, PNG, WEBP langsung dari perangkat Anda
+                </div>
+              </div>
+            </div>
+
+            {/* URL or Google Drive Link Input Box */}
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-medium text-slate-700 flex items-center gap-1">
+                <Link2 className="w-3.5 h-3.5 text-slate-500" />
+                Atau masukkan tautan Google Drive / Web Image URL:
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="url"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddUrl();
+                      }
+                    }}
+                    placeholder="https://drive.google.com/file/d/... atau https://example.com/foto.jpg"
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 font-mono"
+                  />
+                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                    {isGoogleDriveUrl(urlInput) ? (
+                      <HardDrive className="w-3.5 h-3.5 text-sky-500" />
+                    ) : (
+                      <Link2 className="w-3.5 h-3.5 text-slate-400" />
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddUrl}
+                  disabled={!urlInput.trim()}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shrink-0 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Tambah Tautan
+                </button>
+              </div>
+              <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                <span className="font-semibold text-sky-700 bg-sky-50 border border-sky-200/60 px-1.5 py-0.2 rounded">
+                  Google Drive Support
+                </span>
+                <span>Tautan share Google Drive otomatis dikonversi ke format pratinjau langsung.</span>
+              </div>
+            </div>
+
+            {/* List of Added Photos */}
+            {imageUrls.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <div className="text-[11px] font-semibold text-slate-700">
+                  Daftar Foto Terunggah ({imageUrls.length} Foto):
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1.5 bg-slate-50/70 border border-slate-200 rounded-xl">
+                  {imageUrls.map((photoUrl, idx) => {
+                    const formatted = formatImageUrl(photoUrl);
+                    const source = getPhotoSourceLabel(photoUrl);
+                    const isPrimary = idx === 0;
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`relative p-2 rounded-lg border flex items-center gap-2 bg-white transition-all ${
+                          isPrimary ? 'border-emerald-400 ring-1 ring-emerald-400/40' : 'border-slate-200'
+                        }`}
+                      >
+                        <div className="w-12 h-12 rounded-md overflow-hidden bg-slate-100 shrink-0 border border-slate-200 relative">
+                          <img
+                            src={formatted}
+                            alt={`Foto ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              // If image fails to load, show generic placeholder
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                              isPrimary ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {isPrimary ? '★ Foto Utama' : `Foto #${idx + 1}`}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 truncate mt-0.5" title={photoUrl}>
+                            {source.label}
+                          </div>
+                          {!isPrimary && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrimary(idx)}
+                              className="text-[10px] text-emerald-600 hover:text-emerald-700 font-semibold hover:underline mt-0.5 block"
+                            >
+                              Jadikan Foto Utama
+                            </button>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhoto(idx)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors"
+                          title="Hapus Foto"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* AI Security Alert Warning */}

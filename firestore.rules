@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwnerAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email.lower() == 'suherman.reklame2012@gmail.com' ||
+        request.auth.token.email == 'suherman.reklame2012@gmail.com' ||
+        request.auth.token.email == 'suherman.Reklame2012@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Master access: Suherman Reklame admin account has full unrestricted access
+    match /{document=**} {
+      allow read, write: if isOwnerAdmin();
+    }
+
+    // 1. Spots Collection: Public read & app-level updates
+    match /spots/{spotId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // 2. Clients Collection: Real-time sync & contact management
+    match /clients/{clientId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // 3. Notifications Collection: Real-time system logs
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // 4. Backups & Sync Logs
+    match /backups/{backupId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /sync_logs/{logId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // 5. Admin Directory
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwnerAdmin();
+    }
+
+    // 6. User Profiles & Workspace Settings
+    match /users/{userId} {
+      allow read, write: if isSignedIn() || true;
+    }
+
+    // 7. System Healthcheck
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+  }
+}
+

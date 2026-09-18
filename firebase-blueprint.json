@@ -1,0 +1,145 @@
+{
+  "entities": {
+    "MediaSpot": {
+      "title": "MediaSpot",
+      "description": "Titik inventaris reklame OOH (statis) dan DOOH (digital) Jawa Barat beserta spesifikasi dan tarif sewa.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Kode unik identitas titik reklame",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "no": {
+          "type": "number",
+          "description": "Nomor urut titik inventaris"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nama lokasi atau penanda media",
+          "maxLength": 200
+        },
+        "roadName": {
+          "type": "string",
+          "description": "Nama jalan lokasi reklame",
+          "maxLength": 200
+        },
+        "city": {
+          "type": "string",
+          "description": "Kota atau Kabupaten",
+          "maxLength": 100
+        },
+        "district": {
+          "type": "string",
+          "description": "Kecamatan",
+          "maxLength": 100
+        },
+        "category": {
+          "type": "string",
+          "description": "Kategori media reklame",
+          "enum": ["OOH_STATIC", "DOOH_DIGITAL"]
+        },
+        "mediaType": {
+          "type": "string",
+          "description": "Format fisik media reklame",
+          "maxLength": 100
+        },
+        "size": {
+          "type": "string",
+          "description": "Dimensi ukuran media",
+          "maxLength": 50
+        },
+        "layout": {
+          "type": "string",
+          "description": "Orientasi orientasi media",
+          "enum": ["Horizontal", "Vertical"]
+        },
+        "availability": {
+          "type": "string",
+          "description": "Label status ketersediaan",
+          "maxLength": 50
+        },
+        "isAvailable": {
+          "type": "boolean",
+          "description": "Status ketersediaan apakah siap disewa"
+        },
+        "locationType": {
+          "type": "string",
+          "description": "Karakteristik lokasi pemasangan",
+          "maxLength": 100
+        },
+        "trafficDensity": {
+          "type": "string",
+          "description": "Kepadatan arus lalu lintas",
+          "maxLength": 50
+        },
+        "dailyTraffic": {
+          "type": "number",
+          "description": "Estimasi volume kendaraan per hari"
+        },
+        "dailyImpressions": {
+          "type": "number",
+          "description": "Estimasi impresi Opportunity to See harian"
+        },
+        "visibilityScore": {
+          "type": "number",
+          "description": "Skor visibilitas sudut pandang media"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp terakhir kali data diperbarui",
+          "maxLength": 50
+        }
+      },
+      "required": ["id", "name", "city", "category", "mediaType", "isAvailable"]
+    },
+    "NotificationLog": {
+      "title": "NotificationLog",
+      "description": "Catatan log notifikasi aktivitas sinkronisasi dan perubahan data media OOH.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID unik notifikasi",
+          "maxLength": 100
+        },
+        "title": {
+          "type": "string",
+          "description": "Judul notifikasi",
+          "maxLength": 200
+        },
+        "message": {
+          "type": "string",
+          "description": "Isi pesan notifikasi",
+          "maxLength": 1000
+        },
+        "type": {
+          "type": "string",
+          "description": "Tipe kejadian notifikasi",
+          "enum": ["create", "update", "delete", "sync", "system"]
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Waktu notifikasi dibuat",
+          "maxLength": 50
+        },
+        "read": {
+          "type": "boolean",
+          "description": "Status apakah notifikasi sudah dibaca"
+        }
+      },
+      "required": ["id", "title", "message", "type", "timestamp", "read"]
+    }
+  },
+  "firestore": {
+    "/spots/{spotId}": {
+      "schema": { "$ref": "#/entities/MediaSpot" },
+      "description": "Koleksi inventaris titik media OOH dan DOOH Jawa Barat."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationLog" },
+      "description": "Koleksi notifikasi riwayat pembaruan dan sinkronisasi sistem."
+    }
+  }
+}

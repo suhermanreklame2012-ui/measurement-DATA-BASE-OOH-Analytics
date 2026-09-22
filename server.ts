@@ -459,18 +459,32 @@ REKOMENDASI:
         try {
           const ai = getAi();
 
+          const totalDailyTraffic = spots.reduce((acc: number, s: any) => acc + (s.dailyTraffic || 0), 0);
+          const totalMonthlyTraffic = totalDailyTraffic * 30;
+
+          // Pricing calculation based on duration
+          const getDurationPrice = (s: any) => {
+            if (duration === '3 Bulan') return s.pricing?.threeMonths || (s.pricing?.oneMonth || 0) * 3 * 0.95;
+            if (duration === '6 Bulan') return s.pricing?.sixMonths || (s.pricing?.oneMonth || 0) * 6 * 0.90;
+            if (duration === '1 Tahun') return s.pricing?.oneYear || (s.pricing?.oneMonth || 0) * 12 * 0.85;
+            return s.pricing?.oneMonth || 0;
+          };
+
+          const totalPackageCost = spots.reduce((acc: number, s: any) => acc + getDurationPrice(s), 0);
+          const effectiveCPM = totalMonthlyImpressions > 0 
+            ? ((totalPackageCost / totalMonthlyImpressions) * 1000).toFixed(1)
+            : '0';
+
           const spotsDetails = spots.map((s: any, idx: number) => {
-            const price = duration === '3 Bulan' ? (s.pricing?.threeMonths || s.pricing?.oneMonth * 3) :
-                          duration === '6 Bulan' ? (s.pricing?.sixMonths || s.pricing?.oneMonth * 6) :
-                          duration === '1 Tahun' ? (s.pricing?.oneYear || s.pricing?.oneMonth * 12) :
-                          (s.pricing?.oneMonth || 0);
-            return `${idx + 1}. ${s.name} (${s.city}) | Kategori: ${s.category === 'DOOH_DIGITAL' ? 'DOOH (Digital Videotron)' : 'OOH (Billboard Statis)'} | Format: ${s.mediaType} (${s.size}) | Trafik: ~${s.dailyTraffic?.toLocaleString('id-ID')} kendaraan/hari | Impresi: ~${s.dailyImpressions?.toLocaleString('id-ID')} OTS/hari | Tarif (${duration}): Rp ${(price || 0).toLocaleString('id-ID')}`;
+            const price = getDurationPrice(s);
+            const sesTier = s.locationType === 'Komersial & Mall' ? 'SES A/B (High Affluent)' : 
+                            s.locationType === 'Pusat Kota & Protokol' ? 'SES A/B/C+ (Executive & Shoppers)' :
+                            s.locationType === 'Pendidikan & Kampus' ? 'SES B/C+ (Gen Z & Youth)' : 'SES B/C+ (Commuters)';
+            return `${idx + 1}. ${s.name} (${s.city}, Kec. ${s.district || '-'}) | Kategori: ${s.category === 'DOOH_DIGITAL' ? 'DOOH (Videotron Digital)' : 'OOH (Billboard/Bando Statis)'} | Format: ${s.mediaType} (${s.size}, ${s.layout}) | Trafik: ~${s.dailyTraffic?.toLocaleString('id-ID')} kend./hari | Impresi: ~${s.dailyImpressions?.toLocaleString('id-ID')} OTS/hari | Koridor: ${s.locationType} [${sesTier}] | Investasi (${duration}): Rp ${(price || 0).toLocaleString('id-ID')}`;
           }).join('\n');
 
-          const prompt = `Anda adalah Senior Media Planner & Account Director dari Suherman Reklame (jaringan periklanan luar ruang OOH & DOOH terdepan di Jawa Barat).
-Tugas Anda adalah membuat 2 draf penawaran personal untuk klien:
-1. Format Email formal & meyakinkan.
-2. Format WhatsApp ringkas, terstruktur rapi dengan format tebal (*...*), bullet point, dan emoji profesional.
+          const prompt = `Anda adalah Senior Media Planner & Solutions Architect OOH/DOOH dari Suherman Reklame Jawa Barat.
+Tugas Anda adalah merancang proposal penawaran media luar ruang yang SANGAT PROFESIONAL dengan MENYATUKAN DATA ANALISA TRAFFIC, DEMOGRAFI, DAN SPESIFIKASI TITIK DALAM 1 KESATUAN TERPADU.
 
 Profil Klien:
 - Nama Kontak: ${sanitizeString(client.name)}
@@ -479,21 +493,27 @@ Profil Klien:
 - Kategori Industri: ${sanitizeString(client.category || 'Korporat')}
 - Durasi Kampanye: ${duration}
 - Nada Bahasa (Tone): ${tone}
-${customNote ? `- Catatan Khusus dari Sales: ${sanitizeString(customNote)}` : ''}
+${customNote ? `- Catatan Khusus Sales: ${sanitizeString(customNote)}` : ''}
 
-Titik Media yang Ditawarkan (${spots.length} Titik):
+Titik Media Pilihan yang DITANDAI (${spots.length} Titik):
 ${spotsDetails}
 
-Total Estimasi Impresi: ${totalDailyImpressions.toLocaleString('id-ID')} OTS/hari (~${totalMonthlyImpressions.toLocaleString('id-ID')} OTS/bulan).
+Ringkasan Metrik Terpadu (Traffic & Demografi 1 Kesatuan):
+- Total Volume Kendaraan: ~${totalDailyTraffic.toLocaleString('id-ID')} kendaraan/hari (~${totalMonthlyTraffic.toLocaleString('id-ID')} kendaraan/bulan)
+- Total Estimasi Impresi (OTS): ~${totalDailyImpressions.toLocaleString('id-ID')} OTS/hari (~${totalMonthlyImpressions.toLocaleString('id-ID')} OTS/bulan)
+- Profil Demografi Audiens: Dominan SES A & B (65-75%), Usia produktif 20-45 tahun (Pekerja Kantoran, Pebisnis, Komuter Harian, & Urban Shoppers)
+- Karakteristik Jam Padat (Peak Hours): Pagi (06.30 - 09.30) & Sore (16.30 - 20.00) dengan rerata dwell time persimpangan 45-80 detik
+- Total Investasi Paket (${duration}): Rp ${Math.round(totalPackageCost).toLocaleString('id-ID')} (Efisiensi CPM sangat kompetitif: ~Rp ${effectiveCPM} per 1.000 OTS)
 
-Ketentuan All-In Suherman Reklame:
-- Sudah termasuk pajak reklame resmi & izin Pemda/Pemkot
-- Penerangan lampu malam / operasional digital prima
-- Pembersihan visual & pemeliharaan berkala
-- Laporan dokumentasi foto berkala (Day & Night)
-- Kontak: Suherman Reklame (WhatsApp: 0812-3456-7890, Email: suherman.reklame2012@gmail.com)
+Ketentuan & Jaminan Suherman Reklame:
+- 100% Legalitas terjamin (Pajak Reklame resmi & perizinan Pemda/Pemkot Jawa Barat)
+- Pemeliharaan visual, penerangan malam prima / operasional LED high-refresh rate
+- Laporan dokumentasi foto berkala (Day & Night View) untuk akuntabilitas tayang
+- Kontak: Suherman Reklame (WhatsApp: 0812-3456-7890 / 0878-2224-8975, Email: suherman.reklame2012@gmail.com)
 
-Keluarkan output dalam JSON murni (tanpa tag markdown di luar) dengan skema:
+Instruksi Output:
+Buat draf WhatsApp dan Email yang menyatukan analisa traffic, demografi audiens, dan rincian titik pilihan dalam satu kesatuan terstruktur elegan.
+Keluarkan output dalam JSON murni (tanpa tag markdown) dengan skema:
 {
   "emailSubject": "string",
   "emailBody": "string",
@@ -512,7 +532,6 @@ Keluarkan output dalam JSON murni (tanpa tag markdown di luar) dengan skema:
 
           if (response && response.text) {
             const rawText = response.text.trim();
-            // Extract JSON block if wrapped in markdown
             const jsonMatch = rawText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const parsed = JSON.parse(jsonMatch[0]);
@@ -530,39 +549,63 @@ Keluarkan output dalam JSON murni (tanpa tag markdown di luar) dengan skema:
         }
       }
 
-      // If AI did not populate body, craft rich fallback template
+      // If AI did not populate body, craft rich fallback template with unified traffic & demographics
       if (!emailBody || !whatsappText) {
+        const totalDailyTraffic = spots.reduce((acc: number, s: any) => acc + (s.dailyTraffic || 0), 0);
+        const totalMonthlyTraffic = totalDailyTraffic * 30;
+
+        const getDurationPrice = (s: any) => {
+          if (duration === '3 Bulan') return s.pricing?.threeMonths || (s.pricing?.oneMonth || 0) * 3 * 0.95;
+          if (duration === '6 Bulan') return s.pricing?.sixMonths || (s.pricing?.oneMonth || 0) * 6 * 0.90;
+          if (duration === '1 Tahun') return s.pricing?.oneYear || (s.pricing?.oneMonth || 0) * 12 * 0.85;
+          return s.pricing?.oneMonth || 0;
+        };
+
+        const totalPackageCost = spots.reduce((acc: number, s: any) => acc + getDurationPrice(s), 0);
+        const effectiveCPM = totalMonthlyImpressions > 0 
+          ? ((totalPackageCost / totalMonthlyImpressions) * 1000).toFixed(1)
+          : '0';
+
         const spotLines = spots.map((s: any, idx: number) => {
+          const sesTier = s.locationType === 'Komersial & Mall' ? 'SES A/B (Commercial Hub)' : 
+                          s.locationType === 'Pusat Kota & Protokol' ? 'SES A/B (Main Protocol)' : 'SES B/C+ (Arteri & Commuter)';
           return `${idx + 1}. *${s.name}* (${s.city})
-- Tipe: ${s.mediaType} (${s.size})
-- Trafik: ~${s.dailyTraffic?.toLocaleString('id-ID')} kend./hari | Impresi: ${s.dailyImpressions?.toLocaleString('id-ID')} OTS/hari`;
+   • Format: ${s.mediaType} (${s.size}, ${s.layout})
+   • Trafik: ~${s.dailyTraffic?.toLocaleString('id-ID')} kend./hari | Impresi: *${s.dailyImpressions?.toLocaleString('id-ID')} OTS/hari*
+   • Target Audiens: ${sesTier}
+   • Investasi (${duration}): Rp ${Math.round(getDurationPrice(s)).toLocaleString('id-ID')}`;
         }).join('\n\n');
 
-        whatsappText = `*PENAWARAN TITIK MEDIA OOH/DOOH JAWA BARAT*
+        whatsappText = `*PROPOSAL PENAWARAN MEDIA OOH & DOOH STRATEGIS JAWA BARAT*
 Kepada Yth. *${client.name}*
-_${client.company}_
+_${client.role ? `${client.role} - ` : ''}${client.company}_
 
-Halo ${client.name}, salam hangat dari tim Suherman Reklame.
+Halo ${client.name}, salam hangat dari Suherman Reklame.
 
-Menindaklanjuti rencana ekspansi brand awareness ${client.company}, berikut rekomendasi titik media reklame strategis Jawa Barat:
+Menindaklanjuti strategi penguatan brand awareness & market dominance *${client.company}*, berikut rekomendasi terpadu *${spots.length} Titik Media Terpilih* lengkap dengan analisa traffic dan profil demografi audiens:
 
-📍 *TITIK REKLAME TERPILIH (${spots.length} Titik):*
+📍 *REKOMENDASI TITIK TERPILIH (${spots.length} Titik Ditandai):*
 ${spotLines}
 
-📊 *ESTIMASI JANGKAUAN AUDIENS:*
-• Total Peluang Melihat (OTS): *${totalDailyImpressions.toLocaleString('id-ID')} impresi/hari* (~${totalMonthlyImpressions.toLocaleString('id-ID')} impresi/bulan)
-• Pilihan Durasi: *${duration}*
-${customNote ? `• Catatan Khusus: ${customNote}\n` : ''}
-🛡️ *FASILITAS SUDAH TERMASUK:*
-✅ Pajak Reklame & Izin Pemda Resmi
-✅ Lampu penerangan / operasional LED terjamin
-✅ Pemeliharaan materi berkala & monitoring visual
+📊 *ANALISA TRAFFIC & DEMOGRAFI TERPADU (AUDIENCE INTELLIGENCE):*
+• *Total Impresi (OTS):* *${totalDailyImpressions.toLocaleString('id-ID')} views/hari* (~${totalMonthlyImpressions.toLocaleString('id-ID')} views/bulan)
+• *Volume Trafik Koridor:* ~${totalDailyTraffic.toLocaleString('id-ID')} kendaraan/hari (~${totalMonthlyTraffic.toLocaleString('id-ID')} unit/bulan)
+• *Profil Demografi (SES):* Dominan *SES A & B (70%)*, usia produktif 20–45 thn (Profesional, Pebisnis, & Urban Families)
+• *Jam Paparan Prima (Peak Hours):* Pagi (06.30 - 09.30) & Sore-Malam (16.30 - 20.30) dengan rerata dwell time lampu merah 45-80 detik
+• *Total Investasi (${duration}):* *Rp ${Math.round(totalPackageCost).toLocaleString('id-ID')}* (Efisiensi CPM: ~Rp ${effectiveCPM} / 1.000 OTS)
+${customNote ? `• *Catatan Khusus Sales:* ${customNote}\n` : ''}
+🛡️ *JAMINAN & FASILITAS ALL-IN:*
+✅ Pajak Reklame Resmi & Perizinan Pemda/Pemkot Jawa Barat Terjamin 100%
+✅ Garansi Penerangan Malam & Operasional LED High Refresh Rate Prima
+✅ Pemeliharaan Visual Rutin & Laporan Foto Monitoring Berkala (Day & Night)
 
-Apakah ${client.name} berkenan untuk pembahasan draft SPK atau peninjauan lokasi (site survey) bersama tim kami?
+Apakah ${client.name} berkenan untuk peninjauan titik lokasi bersama tim atau penerbitan berkas SPK resmi?
 
 Hormat kami,
 *Suherman Reklame*
-WhatsApp: 0812-3456-7890 | suherman.reklame2012@gmail.com`;
+OOH & DOOH Media Specialist Jawa Barat
+WhatsApp: 0812-3456-7890 / 0878-2224-8975
+Email: suherman.reklame2012@gmail.com`;
 
         emailBody = `Kepada Yth.
 ${client.name}
@@ -570,30 +613,41 @@ ${client.role ? `${client.role} - ` : ''}${client.company}
 
 Dengan hormat,
 
-Sehubungan dengan rencana kampanye promosi dan penguatan brand awareness ${client.company} di wilayah Jawa Barat, bersama ini Suherman Reklame menyampaikan penawaran inventaris media luar ruang (OOH/DOOH) terpilih:
+Sehubungan dengan rencana kampanye promosi dan perluasan jangkauan merek ${client.company} di wilayah strategis Jawa Barat, bersama ini Suherman Reklame menyampaikan proposal penawaran terpadu media luar ruang (OOH & DOOH) dengan analisa lalu lintas dan profil demografi audiens lengkap:
 
-1. DAFTAR TITIK REKLAME PILIHAN:
-${spots.map((s: any, idx: number) => `   ${idx + 1}. ${s.name} - ${s.city}
-      - Format: ${s.mediaType} (${s.size})
-      - Estimasi Impresi: ${s.dailyImpressions?.toLocaleString('id-ID')} OTS/hari`).join('\n\n')}
+1. DAFTAR TITIK REKLAME PILIHAN (${spots.length} Titik Ditandai):
+${spots.map((s: any, idx: number) => {
+  const sesTier = s.locationType === 'Komersial & Mall' ? 'SES A/B' : 'SES A/B/C+';
+  return `   ${idx + 1}. ${s.name} - ${s.city} (Kec. ${s.district || '-'})
+      - Format Media: ${s.mediaType} (${s.size}, ${s.layout})
+      - Estimasi Lalu Lintas: ${s.dailyTraffic?.toLocaleString('id-ID')} kendaraan / hari
+      - Peluang Melihat (OTS): ${s.dailyImpressions?.toLocaleString('id-ID')} impresi / hari
+      - Klasifikasi Koridor: ${s.locationType} [${sesTier}]
+      - Investasi (${duration}): Rp ${Math.round(getDurationPrice(s)).toLocaleString('id-ID')}`;
+}).join('\n\n')}
 
-2. ESTIMASI JANGKAUAN & KETENTUAN:
-   - Jumlah Titik: ${spots.length} Titik Strategis
-   - Estimasi Impresi Harian: ${totalDailyImpressions.toLocaleString('id-ID')} OTS / hari (~${totalMonthlyImpressions.toLocaleString('id-ID')} OTS / bulan)
-   - Durasi Sewa: ${duration}
-${customNote ? `   - Catatan / Promo Khusus: ${customNote}\n` : ''}
-3. FASILITAS ALL-IN:
-   - Pajak Reklame Resmi & Retribusi Pemda Jawa Barat
-   - Perawatan berkala, instalasi materi, dan pencahayaan optimal
-   - Laporan berkala kondisi visual materi reklame
+2. KESATUAN ANALISA TRAFFIC & DEMOGRAFI AUDIENS:
+   - Total Peluang Melihat (OTS): ${totalDailyImpressions.toLocaleString('id-ID')} impresi/hari (~${totalMonthlyImpressions.toLocaleString('id-ID')} impresi/bulan)
+   - Volume Lalu Lintas Koridor: ${totalDailyTraffic.toLocaleString('id-ID')} kendaraan/hari (~${totalMonthlyTraffic.toLocaleString('id-ID')} unit/bulan)
+   - Komposisi Demografi (SES): 70% SES A & B, didominasi kelompok usia 20-45 tahun (Eksekutif, Pengusaha, Profesional, dan Komuter Aktif)
+   - Karakteristik Mobilitas: Rerata waktu henti (dwell time) di persimpangan mencapai 45-80 detik, menjamin retensi visual tinggi
+   - Total Investasi Paket: Rp ${Math.round(totalPackageCost).toLocaleString('id-ID')} untuk durasi ${duration} (Efisiensi CPM: ~Rp ${effectiveCPM} per 1.000 tayang)
+${customNote ? `   - Catatan / Penawaran Khusus: ${customNote}\n` : ''}
+3. FASILITAS ALL-IN & JAMINAN KEPATUHAN HUKUM:
+   - Pajak Reklame Resmi & Izin Penyelenggaraan Reklame Pemkot/Pemda Jawa Barat
+   - Perawatan materi cetak, lampu penerangan malam terintegrasi, dan operasional layar digital prima
+   - Bukti tayang akuntabel berupa laporan monitoring foto berkala (Day & Night View)
 
-Kami siap membantu menyiapkan simulasi materi visual dan penyesuaian paket sesuai kebutuhan kampanye ${client.company}.
+Kami siap mendiskusikan penyesuaian materi visual maupun survei lokasi langsung bersama tim ${client.company}.
+
+Demikian proposal penawaran ini kami sampaikan. Atas perhatian dan kerja sama yang baik, kami ucapkan terima kasih.
 
 Hormat kami,
 
 Suherman Reklame
-Jawa Barat OOH Media Network
-Email: suherman.reklame2012@gmail.com | WhatsApp: 0812-3456-7890`;
+PT Media Reklame Jawa Barat Mandiri
+WhatsApp: 0812-3456-7890 / 0878-2224-8975
+Email: suherman.reklame2012@gmail.com`;
 
         keyHighlights = [
           `Total potensi jangkauan audiens mencapai ${totalDailyImpressions.toLocaleString('id-ID')} impresi per hari di titik arteri Jawa Barat.`,

@@ -63,56 +63,61 @@ export function generateLocalProposalFallback(params: DraftProposalRequest): Pro
   };
 
   const totalDurationPrice = spots.reduce((acc, s) => acc + getDurationPrice(s), 0);
+  const effectiveCPM = totalMonthlyImpressions > 0 
+    ? ((totalDurationPrice / totalMonthlyImpressions) * 1000).toFixed(1)
+    : '0';
 
   // Key highlights
   const keyHighlights = [
-    `Total estimasi impresi mencapai ${formatCompactNumber(totalDailyImpressions)} OTS/hari (${formatCompactNumber(totalMonthlyImpressions)} OTS/bulan) di koridor jalan utama Jawa Barat.`,
-    `Penempatan strategis di ${Array.from(new Set(spots.map(s => s.city))).join(', ')} dengan visibilitas sudut pandang optimal tanpa halangan.`,
-    `Paket all-in mencakup izin reklame resmi, instalasi, penerangan malam (frontlite/digital), dan pemeliharaan materi berkala.`,
-    `Tersedia opsi monitoring live report dan dokumentasi berkala untuk akuntabilitas kampanye ${client.company}.`
+    `Total estimasi impresi mencapai ${formatCompactNumber(totalDailyImpressions)} OTS/hari (~${formatCompactNumber(totalMonthlyImpressions)} OTS/bulan) di koridor prima Jawa Barat.`,
+    `Profil demografi terverifikasi: Dominan SES A & B (70%), menjangkau pengambil keputusan, profesional muda (20-45 thn), dan komuter urban.`,
+    `Penempatan strategis di ${Array.from(new Set(spots.map(s => s.city))).join(', ')} dengan visibilitas sudut pandang frontal tinggi dan waktu henti persimpangan optimal.`,
+    `Paket all-in mencakup perizinan legalitas Pemda/Pemkot resmi, garansi pencahayaan malam / operasional digital prima, dan laporan berkala.`
   ];
 
   const spotSummaryLines = spots.map((s, idx) => {
+    const sesTier = s.locationType === 'Komersial & Mall' ? 'SES A/B' : 'SES A/B/C+';
     return `${idx + 1}. *${s.name}* (${s.city})
-   - Format: ${s.mediaType} (${s.size})
-   - Trafik: ~${s.dailyTraffic?.toLocaleString('id-ID')} kend./hari | Impresi: ${s.dailyImpressions?.toLocaleString('id-ID')} OTS/hari
-   - Tarif Sewa (${duration}): ${formatIDR(getDurationPrice(s))}`;
+   • Format: ${s.mediaType} (${s.size}, ${s.layout})
+   • Trafik: ~${s.dailyTraffic?.toLocaleString('id-ID')} kend./hari | Impresi: *${s.dailyImpressions?.toLocaleString('id-ID')} OTS/hari*
+   • Target Audiens: ${s.locationType} [${sesTier}]
+   • Investasi (${duration}): ${formatIDR(getDurationPrice(s))}`;
   }).join('\n\n');
 
   // WhatsApp Message
-  const whatsappText = `*PENAWARAN KHUSUS MEDIA REKLAME OOH/DOOH JAWA BARAT*
+  const whatsappText = `*PROPOSAL PENAWARAN MEDIA OOH & DOOH STRATEGIS JAWA BARAT*
 Kepada Yth. *${client.name}*
-_${client.company}_
+_${client.role ? `${client.role} - ` : ''}${client.company}_
 
-Halo ${client.name}, salam hangat dari Suherman Reklame (OOH Jawa Barat).
+Halo ${client.name}, salam hangat dari Suherman Reklame.
 
-Menindaklanjuti rencana penguatan branding dan penetrasi pasar ${client.company}, kami telah menyusun rekomendasi titik media *Out-Of-Home (OOH & DOOH)* paling strategis:
+Menindaklanjuti strategi penguatan brand awareness & market dominance *${client.company}*, berikut rekomendasi terpadu *${spots.length} Titik Media Terpilih* lengkap dengan analisa traffic dan profil demografi audiens:
 
-📍 *REKOMENDASI TITIK TERPILIH (${spots.length} Titik):*
+📍 *REKOMENDASI TITIK TERPILIH (${spots.length} Titik Ditandai):*
 ${spotSummaryLines}
 
-📊 *ESTIMASI JANGKAUAN AUDIENS:*
-• Total Kendaraan: ~${totalDailyTraffic.toLocaleString('id-ID')} unit/hari
-• Total Peluang Melihat (OTS): *${totalDailyImpressions.toLocaleString('id-ID')} impresi/hari* (~${totalMonthlyImpressions.toLocaleString('id-ID')} impresi/bulan)
-• Durasi Kampanye: *${duration}*
-• Total Investasi Paket: *${formatIDR(totalDurationPrice)}* ${customNote ? `\n• Catatan Khusus: ${customNote}` : ''}
+📊 *ANALISA TRAFFIC & DEMOGRAFI TERPADU (AUDIENCE INTELLIGENCE):*
+• *Total Impresi (OTS):* *${totalDailyImpressions.toLocaleString('id-ID')} views/hari* (~${totalMonthlyImpressions.toLocaleString('id-ID')} views/bulan)
+• *Volume Trafik Koridor:* ~${totalDailyTraffic.toLocaleString('id-ID')} kendaraan/hari (~${(totalDailyTraffic * 30).toLocaleString('id-ID')} unit/bulan)
+• *Profil Demografi (SES):* Dominan *SES A & B (70%)*, usia produktif 20–45 thn (Profesional, Pebisnis, & Urban Families)
+• *Jam Paparan Prima (Peak Hours):* Pagi (06.30 - 09.30) & Sore-Malam (16.30 - 20.30) dengan rerata dwell time lampu merah 45-80 detik
+• *Total Investasi (${duration}):* *${formatIDR(totalDurationPrice)}* (Efisiensi CPM: ~Rp ${effectiveCPM} / 1.000 OTS)
+${customNote ? `• *Catatan Khusus Sales:* ${customNote}\n` : ''}
+🛡️ *JAMINAN & FASILITAS ALL-IN:*
+✅ Pajak Reklame Resmi & Perizinan Pemda/Pemkot Jawa Barat Terjamin 100%
+✅ Garansi Penerangan Malam & Operasional LED High Refresh Rate Prima
+✅ Pemeliharaan Visual Rutin & Laporan Foto Monitoring Berkala (Day & Night)
 
-🛡️ *FASILITAS & JAMINAN:*
-✅ Pajak Reklame & Izin Resmi Pemda/Pemkot terjamin
-✅ Instalasi & Perawatan materi berkala
-✅ Garansi pencahayaan lampu / operasional LED 100%
-✅ Laporan foto berkala (Day & Night View)
+Apakah ${client.name} berkenan untuk peninjauan titik lokasi bersama tim atau penerbitan berkas SPK resmi?
 
-Apakah ${client.name} berkenan untuk kami kirimkan draft SPK dan jadwal site visit bersama tim minggu ini?
-
-Terima kasih atas kepercayaannya.
 Hormat kami,
 *Suherman Reklame*
-OOH & DOOH Strategic Media Network Jawa Barat
-WhatsApp: 0812-3456-7890 | Email: suherman.reklame2012@gmail.com`;
+OOH & DOOH Media Specialist Jawa Barat
+WhatsApp: 0812-3456-7890 / 0878-2224-8975
+Email: suherman.reklame2012@gmail.com`;
 
   // Email Subject
-  const emailSubject = `[Penawaran Resmi] Media Luar Ruang (OOH/DOOH) Strategis Jawa Barat - ${client.company}`;
+  const emailSubject = `[Proposal Resmi] Rekomendasi Media Luar Ruang (OOH/DOOH) Strategis Jawa Barat - ${client.company}`;
 
   // Email Body
   const emailBody = `Kepada Yth.
@@ -121,40 +126,40 @@ ${client.role ? `${client.role} - ` : ''}${client.company}
 
 Dengan hormat,
 
-Semoga ${client.name} dan tim ${client.company} senantiasa dalam keadaan sehat dan sukses selalu.
+Sehubungan dengan rencana kampanye promosi dan perluasan jangkauan merek ${client.company} di wilayah strategis Jawa Barat, bersama ini Suherman Reklame menyampaikan proposal penawaran terpadu media luar ruang (OOH & DOOH) dengan analisa lalu lintas dan profil demografi audiens lengkap:
 
-Sehubungan dengan kebutuhan media luar ruang (Out-of-Home / DOOH) untuk memperkuat brand awareness serta penetrasi pasar di wilayah Jawa Barat, bersama ini kami dari Suherman Reklame menyampaikan proposal penawaran untuk ${spots.length} titik reklame pilihan berkepadatan tinggi:
-
-1. IKHTISAR TITIK REKLAME TERPILIH:
-${spots.map((s, idx) => `   ${idx + 1}. ${s.name} - ${s.city}
+1. DAFTAR TITIK REKLAME PILIHAN (${spots.length} Titik Ditandai):
+${spots.map((s, idx) => {
+  const sesTier = s.locationType === 'Komersial & Mall' ? 'SES A/B' : 'SES A/B/C+';
+  return `   ${idx + 1}. ${s.name} - ${s.city} (Kec. ${s.district || '-'})
       - Format Media: ${s.mediaType} (${s.size}, ${s.layout})
-      - Estimasi Lalu Lintas: ${s.dailyTraffic?.toLocaleString('id-ID')} kendaraan/hari
-      - Estimasi Impresi (OTS): ${s.dailyImpressions?.toLocaleString('id-ID')} impresi/hari
-      - Investasi (${duration}): ${formatIDR(getDurationPrice(s))}`).join('\n\n')}
+      - Estimasi Lalu Lintas: ${s.dailyTraffic?.toLocaleString('id-ID')} kendaraan / hari
+      - Peluang Melihat (OTS): ${s.dailyImpressions?.toLocaleString('id-ID')} impresi / hari
+      - Klasifikasi Koridor: ${s.locationType} [${sesTier}]
+      - Investasi (${duration}): ${formatIDR(getDurationPrice(s))}`;
+}).join('\n\n')}
 
-2. TOTAL ESTIMASI JANGKAUAN & INVESTASI:
-   - Jumlah Titik: ${spots.length} Titik Strategis
-   - Estimasi Impresi Harian: ${totalDailyImpressions.toLocaleString('id-ID')} OTS / hari
-   - Estimasi Impresi Bulanan: ${totalMonthlyImpressions.toLocaleString('id-ID')} OTS / bulan
-   - Pilihan Durasi: ${duration}
-   - Total Paket Investasi: ${formatIDR(totalDurationPrice)} (Belum termasuk PPN 11%)
+2. KESATUAN ANALISA TRAFFIC & DEMOGRAFI AUDIENS:
+   - Total Peluang Melihat (OTS): ${totalDailyImpressions.toLocaleString('id-ID')} impresi/hari (~${totalMonthlyImpressions.toLocaleString('id-ID')} impresi/bulan)
+   - Volume Lalu Lintas Koridor: ${totalDailyTraffic.toLocaleString('id-ID')} kendaraan/hari (~${(totalDailyTraffic * 30).toLocaleString('id-ID')} unit/bulan)
+   - Komposisi Demografi (SES): 70% SES A & B, didominasi kelompok usia 20-45 tahun (Eksekutif, Pengusaha, Profesional, dan Komuter Aktif)
+   - Karakteristik Mobilitas: Rerata waktu henti (dwell time) di persimpangan mencapai 45-80 detik, menjamin retensi visual tinggi
+   - Total Investasi Paket: ${formatIDR(totalDurationPrice)} untuk durasi ${duration} (Efisiensi CPM: ~Rp ${effectiveCPM} per 1.000 tayang)
 ${customNote ? `   - Catatan / Penawaran Khusus: ${customNote}\n` : ''}
-3. FASILITAS SUDAH TERMASUK (ALL-IN):
-   - Pajak Reklame Resmi & Perizinan Pemerintah Daerah (Kota Bandung & Sekitarnya)
-   - Konstruksi, pencahayaan malam hari (Frontlite/Backlite/LED High Refresh Rate)
-   - Pemeliharaan visual & pembersihan berkala sepanjang masa tayang
-   - Laporan monitoring foto awal dan foto berkala (siang & malam)
+3. FASILITAS ALL-IN & JAMINAN KEPATUHAN HUKUM:
+   - Pajak Reklame Resmi & Izin Penyelenggaraan Reklame Pemkot/Pemda Jawa Barat
+   - Perawatan materi cetak, lampu penerangan malam terintegrasi, dan operasional layar digital prima
+   - Bukti tayang akuntabel berupa laporan monitoring foto berkala (Day & Night View)
 
-Kami sangat siap mendiskusikan penyesuaian materi visual, negosiasi paket bundling, maupun pengaturan jadwal pemasangan sesuai timeline kampanye ${client.company}.
+Kami siap mendiskusikan penyesuaian materi visual maupun survei lokasi langsung bersama tim ${client.company}.
 
-Demikian surat penawaran ini kami sampaikan. Kami menantikan kabar baik dan konfirmasi dari Bapak/Ibu.
+Demikian proposal penawaran ini kami sampaikan. Atas perhatian dan kerja sama yang baik, kami ucapkan terima kasih.
 
 Hormat kami,
 
 Suherman Reklame
 PT Media Reklame Jawa Barat Mandiri
-Jl. Asia Afrika / Dago Protokol, Bandung
-Telepon / WhatsApp: 0812-3456-7890
+WhatsApp: 0812-3456-7890 / 0878-2224-8975
 Email: suherman.reklame2012@gmail.com`;
 
   return {

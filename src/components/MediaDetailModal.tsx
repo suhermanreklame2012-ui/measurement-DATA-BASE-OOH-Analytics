@@ -48,6 +48,7 @@ interface MediaDetailModalProps {
   onToggleAvailability: (spotId: string) => void;
   onOpenAiProposal?: (spot: MediaSpot) => void;
   onEditSpot?: (spot: MediaSpot) => void;
+  onOpenRoiCalculator?: (spot: MediaSpot) => void;
 }
 
 export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
@@ -55,7 +56,8 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
   onClose,
   onToggleAvailability,
   onOpenAiProposal,
-  onEditSpot
+  onEditSpot,
+  onOpenRoiCalculator
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [showQrCode, setShowQrCode] = useState<boolean>(false);
@@ -753,6 +755,28 @@ ${savingsNote}
           </div>
 
           {/* Interactive ROI & CPM Estimator Calculator (Synced with Campaign Duration) */}
+          {onOpenRoiCalculator && (
+            <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-500/30">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-slate-200 font-medium">
+                  Ingin analisis CTR mendalam untuk 9 industri berbeda?
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenRoiCalculator(spot);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>Buka Estimated ROI Calculator</span>
+              </button>
+            </div>
+          )}
+
           <SpotRoiCalculator 
             spot={spot} 
             months={campaignMonths}

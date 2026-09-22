@@ -20,7 +20,8 @@ import {
   Sparkles,
   Send,
   MessageCircle,
-  Pencil
+  Pencil,
+  TrendingUp
 } from 'lucide-react';
 
 interface MediaTableProps {
@@ -30,6 +31,7 @@ interface MediaTableProps {
   onToggleAvailability: (spotId: string) => void;
   onBulkUpdateAvailability: (spotIds: string[], isAvailable: boolean) => void;
   onOpenAiProposal?: (spots: MediaSpot[]) => void;
+  onOpenRoiCalculator?: (spot: MediaSpot) => void;
 }
 
 type SortField = 'no' | 'name' | 'city' | 'dailyImpressions' | 'dailyTraffic' | 'oneMonthPrice';
@@ -41,7 +43,8 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   onEditSpot,
   onToggleAvailability,
   onBulkUpdateAvailability,
-  onOpenAiProposal
+  onOpenAiProposal,
+  onOpenRoiCalculator
 }) => {
   const [sortField, setSortField] = useState<SortField>('dailyImpressions');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -539,6 +542,16 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                           >
                             <Info className="w-4 h-4" />
                           </button>
+
+                          {onOpenRoiCalculator && (
+                            <button
+                              onClick={() => onOpenRoiCalculator(spot)}
+                              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                              title="Hitung Estimasi ROI & Rasio Konversi (OOH CTR)"
+                            >
+                              <TrendingUp className="w-4 h-4 text-indigo-600" />
+                            </button>
+                          )}
 
                           {/* Direct WhatsApp Web button */}
                           <button

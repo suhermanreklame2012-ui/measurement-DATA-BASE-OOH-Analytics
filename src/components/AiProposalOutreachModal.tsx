@@ -45,13 +45,14 @@ import {
   ContactsSyncResult 
 } from '../services/googleContactsService';
 import { getAccessToken, googleSignIn } from '../services/googleAuthService';
-import { generateProposalDraft } from '../services/aiProposalService';
+import { generateProposalDraft, generateLocalProposalFallback } from '../services/aiProposalService';
 import { formatIDR, formatCompactNumber } from '../utils/formatters';
-import { addNotification } from '../services/storageService';
+import { addNotification, getStoredSpots, saveStoredSpots } from '../services/storageService';
+import { GoogleDrivePhotoPickerModal } from './GoogleDrivePhotoPickerModal';
 import { BUSINESS_WA_NUMBER } from '../utils/whatsapp';
 import { calculateUnifiedProposalAnalytics } from '../utils/audienceDemographics';
 import { generateExecutiveProposalPDF } from '../utils/proposalPdfExport';
-import { formatImageUrl } from '../utils/imageUtils';
+import { formatImageUrl, getSpotImageUrl, getAllSpotImages } from '../utils/imageUtils';
 import {
   FileDown,
   ShieldCheck,
@@ -64,7 +65,12 @@ import {
   PieChart as PieIcon,
   Award,
   Car,
-  Building2
+  Building2,
+  ZoomIn,
+  Image as ImageIcon,
+  Maximize2,
+  Download,
+  HardDrive
 } from 'lucide-react';
 
 interface AiProposalOutreachModalProps {
@@ -104,6 +110,7 @@ export const AiProposalOutreachModal: React.FC<AiProposalOutreachModalProps> = (
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [proposalDraft, setProposalDraft] = useState<ProposalDraft | null>(null);
   const [activeTab, setActiveTab] = useState<'deck' | 'whatsapp' | 'email' | 'contacts'>('deck');
 
@@ -117,6 +124,95 @@ export const AiProposalOutreachModal: React.FC<AiProposalOutreachModalProps> = (
   const [copiedEmail, setCopiedEmail] = useState<boolean>(false);
   const [copiedDeck, setCopiedDeck] = useState<boolean>(false);
   const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(null);
+
+  // Photo Lightbox Preview State
+  const [previewPhotoSpot, setPreviewPhotoSpot] = useState<{ spot: MediaSpot; photoUrl: string } | null>(null);
+  const [activePhotoIndex, setActivePhotoIndex] = useState<number>(0);
+
+  // Google Drive photo picker states (suherman.reklame2012@gmail.com)
+  const [isDrivePickerOpen, setIsDrivePickerOpen] = useState<boolean>(false);
+  const [drivePickerTargetSpot, setDrivePickerTargetSpot] = useState<MediaSpot | null>(null);
+
+  const handleDrivePhotoSelected = (photoUrl: string, _photoItem: any, spotId?: string) => {
+    const targetId = spotId || drivePickerTargetSpot?.id;
+    if (!targetId) return;
+
+    setProposalSpots((prev) =>
+      prev.map((s) => {
+        if (s.id === targetId) {
+          return {
+            ...s,
+            imageUrl: photoUrl,
+            imageUrls: [photoUrl, ...(s.imageUrls || []).filter((u) => u !== photoUrl)]
+          };
+        }
+        return s;
+      })
+    );
+
+    // Persist to global storage
+    try {
+      const allCurrent = getStoredSpots();
+      const updated = allCurrent.map((s) => {
+        if (s.id === targetId) {
+          return {
+            ...s,
+            imageUrl: photoUrl,
+            imageUrls: [photoUrl, ...(s.imageUrls || []).filter((u) => u !== photoUrl)]
+          };
+        }
+        return s;
+      });
+      saveStoredSpots(updated);
+    } catch (e) {
+      console.warn('Storage update notice:', e);
+    }
+
+    if (onUpdateSelectedSpots) {
+      onUpdateSelectedSpots(
+        proposalSpots.map((s) =>
+          s.id === targetId
+            ? { ...s, imageUrl: photoUrl, imageUrls: [photoUrl, ...(s.imageUrls || []).filter((u) => u !== photoUrl)] }
+            : s
+        )
+      );
+    }
+  };
+
+  const handleBatchSyncDrivePhotos = (assignments: Array<{ spotId: string; photoUrl: string }>) => {
+    const map = new Map(assignments.map((a) => [a.spotId, a.photoUrl]));
+    const nextSpots = proposalSpots.map((s) => {
+      if (map.has(s.id)) {
+        const photoUrl = map.get(s.id)!;
+        return {
+          ...s,
+          imageUrl: photoUrl,
+          imageUrls: [photoUrl, ...(s.imageUrls || []).filter((u) => u !== photoUrl)]
+        };
+      }
+      return s;
+    });
+    setProposalSpots(nextSpots);
+    if (onUpdateSelectedSpots) onUpdateSelectedSpots(nextSpots);
+
+    try {
+      const allCurrent = getStoredSpots();
+      const updated = allCurrent.map((s) => {
+        if (map.has(s.id)) {
+          const photoUrl = map.get(s.id)!;
+          return {
+            ...s,
+            imageUrl: photoUrl,
+            imageUrls: [photoUrl, ...(s.imageUrls || []).filter((u) => u !== photoUrl)]
+          };
+        }
+        return s;
+      });
+      saveStoredSpots(updated);
+    } catch (e) {
+      console.warn('Batch storage update notice:', e);
+    }
+  };
 
   // Google Contacts Sync states
   const [isSyncingContacts, setIsSyncingContacts] = useState<boolean>(false);
@@ -211,10 +307,49 @@ export const AiProposalOutreachModal: React.FC<AiProposalOutreachModalProps> = (
     return calculateUnifiedProposalAnalytics(proposalSpots, duration);
   }, [proposalSpots, duration]);
 
+  // Best Value spot in proposal based on impressions-per-price ratio
+  const bestValueProposalSpotId = useMemo(() => {
+    if (proposalSpots.length <= 1) return null;
+    let maxRatio = -1;
+    let bestId: string | null = null;
+    proposalSpots.forEach((s) => {
+      const price = duration === '3 Bulan'
+        ? (s.pricing?.threeMonths || s.pricing.oneMonth * 3)
+        : duration === '6 Bulan'
+        ? (s.pricing?.sixMonths || s.pricing.oneMonth * 6)
+        : duration === '1 Tahun'
+        ? (s.pricing?.oneYear || s.pricing.oneMonth * 12)
+        : s.pricing.oneMonth;
+      const ratio = (s.dailyImpressions * 30) / (price || 1);
+      if (ratio > maxRatio) {
+        maxRatio = ratio;
+        bestId = s.id;
+      }
+    });
+    return bestId;
+  }, [proposalSpots, duration]);
+
   // Selected client object
   const activeClient = useMemo(() => {
     return clients.find((c) => c.id === selectedClientId) || clients[0] || null;
   }, [clients, selectedClientId]);
+
+  // Auto initialize proposal text if spots are marked
+  useEffect(() => {
+    if (isOpen && proposalSpots.length > 0 && activeClient && !whatsappContent) {
+      const initial = generateLocalProposalFallback({
+        client: activeClient,
+        spots: proposalSpots,
+        duration,
+        tone,
+        customNote
+      });
+      setProposalDraft(initial);
+      setWhatsappContent(initial.whatsappText);
+      setEmailSubject(initial.emailSubject);
+      setEmailBody(initial.emailBody);
+    }
+  }, [isOpen, proposalSpots, activeClient, duration, tone, whatsappContent]);
 
   // Filtered clients for dropdown/list
   const filteredClients = useMemo(() => {
@@ -377,18 +512,30 @@ export const AiProposalOutreachModal: React.FC<AiProposalOutreachModalProps> = (
   };
 
   // Download PDF Executive Proposal
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!activeClient) return;
     if (proposalSpots.length === 0) {
       alert('Pilih dan tandai minimal 1 titik media reklame terlebih dahulu.');
       return;
     }
-    generateExecutiveProposalPDF(activeClient, proposalSpots, unifiedAnalytics, duration, customNote);
-    addNotification({
-      title: 'PDF Proposal Eksekutif Dibuat',
-      message: `Proposal resmi ${proposalSpots.length} titik untuk ${activeClient.company} berhasil diunduh.`,
-      type: 'create'
-    });
+    setIsGeneratingPdf(true);
+    try {
+      await generateExecutiveProposalPDF(activeClient, proposalSpots, unifiedAnalytics, duration, customNote);
+      addNotification({
+        title: 'PDF Proposal Eksekutif Dibuat',
+        message: `Proposal resmi ${proposalSpots.length} titik dengan foto visual untuk ${activeClient.company} berhasil diunduh.`,
+        type: 'create'
+      });
+    } catch (err) {
+      console.error('Failed to export proposal PDF:', err);
+      addNotification({
+        title: 'Gagal Mengunduh PDF',
+        message: 'Terjadi kendala saat memproses dokumen PDF.',
+        type: 'system'
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   // Copy Executive Proposal Summary
@@ -657,15 +804,29 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                     Hanya titik yang ditandai yang diproses & dikirim
                   </span>
                 </div>
-                <div className="relative">
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setIsSpotPickerOpen(!isSpotPickerOpen)}
-                    className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors px-2 py-1 rounded bg-slate-800 border border-emerald-500/30 hover:border-emerald-500/60"
+                    onClick={() => {
+                      setDrivePickerTargetSpot(proposalSpots[0] || null);
+                      setIsDrivePickerOpen(true);
+                    }}
+                    className="text-[11px] font-semibold text-sky-300 hover:text-sky-200 flex items-center gap-1 transition-colors px-2 py-1 rounded bg-sky-950/70 border border-sky-500/40 hover:border-sky-500/70 cursor-pointer shadow-xs"
+                    title="Ambil foto lokasi resmi dari Google Drive suherman.reklame2012@gmail.com"
                   >
-                    <Plus className="w-3 h-3" />
-                    Tandai Titik
+                    <HardDrive className="w-3 h-3 text-sky-400" />
+                    <span>Drive Foto</span>
                   </button>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsSpotPickerOpen(!isSpotPickerOpen)}
+                      className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors px-2 py-1 rounded bg-slate-800 border border-emerald-500/30 hover:border-emerald-500/60"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Tandai Titik
+                    </button>
 
                   {/* Spot Picker Popover */}
                   {isSpotPickerOpen && (
@@ -686,12 +847,23 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                           <div
                             key={spot.id}
                             onClick={() => handleAddSpot(spot)}
-                            className="p-2 hover:bg-slate-700/60 rounded cursor-pointer transition-colors"
+                            className="p-2 hover:bg-slate-700/60 rounded-lg cursor-pointer transition-colors flex items-center gap-2.5"
                           >
-                            <div className="font-semibold text-white truncate text-[11px]">{spot.name}</div>
-                            <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                              <span>{spot.city} • {spot.mediaType}</span>
-                              <span className="font-mono text-emerald-400">{formatCompactNumber(spot.dailyImpressions)} OTS</span>
+                            <img
+                              src={getSpotImageUrl(spot)}
+                              alt={spot.name}
+                              referrerPolicy="no-referrer"
+                              className="w-10 h-9 rounded-md object-cover border border-slate-700 shrink-0 bg-slate-900"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
+                              }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold text-white truncate text-[11px]">{spot.name}</div>
+                              <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                                <span>{spot.city} • {spot.mediaType}</span>
+                                <span className="font-mono text-emerald-400">{formatCompactNumber(spot.dailyImpressions)} OTS</span>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -705,46 +877,101 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                   )}
                 </div>
               </div>
+                </div>
 
               {/* Spots List */}
-              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                 {proposalSpots.map((spot, idx) => (
                   <div
                     key={spot.id}
-                    className="p-2.5 rounded-lg bg-slate-800/70 border border-slate-700/60 flex items-center justify-between gap-2"
+                    className="p-2 rounded-xl bg-slate-800/80 border border-slate-700/70 flex items-center justify-between gap-2.5 hover:border-emerald-500/40 transition-colors group"
                   >
-                    <div className="min-w-0 flex-1 flex items-start gap-2">
+                    {/* Checkbox and Photo Thumbnail */}
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={() => handleRemoveSpot(spot.id)}
-                        className="mt-0.5 text-emerald-400 hover:text-rose-400 transition-colors"
+                        className="text-emerald-400 hover:text-rose-400 transition-colors shrink-0"
                         title="Klik untuk menghapus tanda titik"
                       >
                         <CheckSquare className="w-4 h-4" />
                       </button>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-4 h-4 rounded-full bg-slate-700 text-slate-300 font-mono text-[10px] flex items-center justify-center shrink-0">
-                            {idx + 1}
-                          </span>
-                          <span className="font-bold text-white text-xs truncate">{spot.name}</span>
+
+                      {/* Location Photo Thumbnail */}
+                      <div
+                        onClick={() => {
+                          setPreviewPhotoSpot({ spot, photoUrl: getSpotImageUrl(spot) });
+                          setActivePhotoIndex(0);
+                        }}
+                        className="relative w-14 h-12 rounded-lg bg-slate-950 border border-slate-700 overflow-hidden shrink-0 cursor-pointer group-hover:border-emerald-400/80 transition-all shadow-xs"
+                        title="Klik untuk melihat foto lokasi"
+                      >
+                        <img
+                          src={getSpotImageUrl(spot)}
+                          alt={spot.name}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
+                          }}
+                        />
+                        <span className="absolute top-0.5 left-0.5 w-3.5 h-3.5 rounded bg-slate-950/80 text-white font-mono text-[8px] flex items-center justify-center font-bold">
+                          {idx + 1}
+                        </span>
+                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <ZoomIn className="w-3.5 h-3.5 text-emerald-300 drop-shadow" />
                         </div>
-                        <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
-                          <span>{spot.city}</span>
-                          <span>•</span>
-                          <span>{spot.mediaType}</span>
-                          <span>•</span>
-                          <span className="text-emerald-400 font-mono font-medium">
-                            {formatCompactNumber(spot.dailyImpressions)} OTS/hari
-                          </span>
-                        </div>
+                      </div>
+                    </div>
+
+                    {/* Spot Details */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-white text-xs truncate" title={spot.name}>
+                          {spot.name}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5 truncate">
+                        <span>{spot.city}</span>
+                        <span>•</span>
+                        <span className="text-slate-300 font-medium">{spot.mediaType}</span>
+                        <span>•</span>
+                        <span className="text-emerald-400 font-mono font-medium">
+                          {formatCompactNumber(spot.dailyImpressions)} OTS
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPreviewPhotoSpot({ spot, photoUrl: getSpotImageUrl(spot) });
+                            setActivePhotoIndex(0);
+                          }}
+                          className="text-[9px] text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                        >
+                          <Eye className="w-2.5 h-2.5" />
+                          <span>Lihat Foto</span>
+                        </button>
+                        <span className="text-slate-600 text-[9px]">•</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDrivePickerTargetSpot(spot);
+                            setIsDrivePickerOpen(true);
+                          }}
+                          className="text-[9px] text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                          title="Ambil atau ganti foto titik ini dari Google Drive suherman.reklame2012@gmail.com"
+                        >
+                          <HardDrive className="w-2.5 h-2.5 text-sky-400" />
+                          <span>Pilih dari Drive</span>
+                        </button>
                       </div>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => handleRemoveSpot(spot.id)}
-                      className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-700/50 rounded transition-colors"
+                      className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-700/50 rounded transition-colors shrink-0"
                       title="Hapus dari daftar penawaran"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -971,6 +1198,26 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleDownloadPDF}
+                        disabled={proposalSpots.length === 0 || isGeneratingPdf}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow cursor-pointer disabled:opacity-50"
+                        title="Unduh Executive Proposal Resmi dalam format PDF (Lengkap dengan Lampiran Foto Lokasi)"
+                      >
+                        {isGeneratingPdf ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span>Menyusun PDF & Foto...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileDown className="w-3.5 h-3.5" />
+                            <span>Unduh PDF Proposal</span>
+                          </>
+                        )}
+                      </button>
+
                       <button
                         type="button"
                         onClick={handleCopyDeckSummary}
@@ -1257,20 +1504,29 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                               >
                                 <div className="flex items-start gap-3 min-w-0 flex-1">
                                   {/* Spot Thumbnail */}
-                                  <div className="w-16 h-14 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden shrink-0 relative flex items-center justify-center">
-                                    {spot.photoUrl ? (
-                                      <img
-                                        src={formatImageUrl(spot.photoUrl)}
-                                        alt={spot.name}
-                                        referrerPolicy="no-referrer"
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <Building2 className="w-6 h-6 text-slate-600" />
-                                    )}
+                                  <div
+                                    onClick={() => {
+                                      setPreviewPhotoSpot({ spot, photoUrl: getSpotImageUrl(spot) });
+                                      setActivePhotoIndex(0);
+                                    }}
+                                    className="w-20 h-16 rounded-xl bg-slate-900 border border-slate-700/80 overflow-hidden shrink-0 relative flex items-center justify-center cursor-pointer group hover:border-emerald-400 transition-all shadow-xs"
+                                    title="Klik untuk memperbesar gambar lokasi"
+                                  >
+                                    <img
+                                      src={getSpotImageUrl(spot)}
+                                      alt={spot.name}
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
+                                      }}
+                                    />
                                     <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-slate-900/90 text-white font-mono text-[9px] flex items-center justify-center font-bold">
                                       {idx + 1}
                                     </span>
+                                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                      <ZoomIn className="w-4 h-4 text-emerald-300 drop-shadow" />
+                                    </div>
                                   </div>
 
                                   {/* Spot Info */}
@@ -1289,6 +1545,12 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                                       <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-700 text-slate-300 font-mono">
                                         {spot.size}
                                       </span>
+                                      {spot.id === bestValueProposalSpotId && (
+                                        <span className="text-[9px] px-1.5 py-0.2 rounded font-extrabold bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 flex items-center gap-1 shadow-2xs">
+                                          <Sparkles className="w-2.5 h-2.5 text-slate-950 fill-slate-950" />
+                                          Best Value
+                                        </span>
+                                      )}
                                     </div>
 
                                     <div className="text-[11px] text-slate-400 mt-0.5 truncate">
@@ -1308,7 +1570,7 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                                 </div>
 
                                 {/* Pricing & Action */}
-                                <div className="text-right shrink-0 flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-700/60">
+                                <div className="text-right shrink-0 flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-700/60 gap-1">
                                   <div>
                                     <div className="text-xs font-bold text-white font-mono">
                                       {formatIDR(spotPrice)}
@@ -1318,15 +1580,30 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                                     </div>
                                   </div>
 
-                                  <a
-                                    href={`https://maps.google.com/?q=${spot.coordinates.lat},${spot.coordinates.lng}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="mt-1 text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium transition-colors"
-                                  >
-                                    <ExternalLink className="w-3 h-3" />
-                                    <span>Survey GPS</span>
-                                  </a>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setPreviewPhotoSpot({ spot, photoUrl: getSpotImageUrl(spot) });
+                                        setActivePhotoIndex(0);
+                                      }}
+                                      className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium transition-colors"
+                                      title="Lihat foto resolusi tinggi"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                      <span>Foto HD</span>
+                                    </button>
+
+                                    <a
+                                      href={`https://maps.google.com/?q=${spot.coordinates.lat},${spot.coordinates.lng}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium transition-colors"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                      <span>Maps</span>
+                                    </a>
+                                  </div>
                                 </div>
                               </div>
                             );
@@ -1348,10 +1625,21 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                           <button
                             type="button"
                             onClick={handleDownloadPDF}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow cursor-pointer"
+                            disabled={isGeneratingPdf}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow cursor-pointer disabled:opacity-50"
+                            title="Unduh Executive Proposal Resmi dalam format PDF (Lengkap dengan Lampiran Foto Lokasi)"
                           >
-                            <FileDown className="w-3.5 h-3.5" />
-                            <span>Unduh PDF Proposal</span>
+                            {isGeneratingPdf ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>Menyusun Dokumen & Foto...</span>
+                              </>
+                            ) : (
+                              <>
+                                <FileDown className="w-3.5 h-3.5" />
+                                <span>Unduh PDF Proposal (+ Lampiran Foto)</span>
+                              </>
+                            )}
                           </button>
                         </div>
                       </div>
@@ -1365,6 +1653,93 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
               {/* TAB 1: WHATSAPP TEMPLATE */}
               {activeTab === 'whatsapp' && (
                 <div className="space-y-3">
+                  {/* Photo Documentation Strip */}
+                  {proposalSpots.length > 0 && (
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+                          <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Dokumentasi Gambar Lokasi Titik Terpilih ({proposalSpots.length} Titik)</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400">
+                          Klik gambar untuk resolusi HD
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {proposalSpots.map((spot, sIdx) => {
+                          const spotImg = getSpotImageUrl(spot);
+                          return (
+                            <div
+                              key={spot.id}
+                              className="bg-slate-950/80 border border-slate-800 rounded-lg overflow-hidden group hover:border-emerald-500/50 transition-all shadow-xs"
+                            >
+                              <div
+                                onClick={() => {
+                                  setPreviewPhotoSpot({ spot, photoUrl: spotImg });
+                                  setActivePhotoIndex(0);
+                                }}
+                                className="relative h-20 w-full bg-slate-900 cursor-pointer overflow-hidden"
+                                title="Klik untuk melihat foto resolusi tinggi"
+                              >
+                                <img
+                                  src={spotImg}
+                                  alt={spot.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
+                                  }}
+                                />
+                                <div className="absolute top-1 left-1 px-1 rounded bg-slate-950/80 text-white font-mono text-[8px] font-bold">
+                                  #{sIdx + 1}
+                                </div>
+                                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <ZoomIn className="w-3.5 h-3.5 text-emerald-300 drop-shadow" />
+                                </div>
+                              </div>
+
+                              <div className="p-1.5 space-y-0.5">
+                                <div className="text-[11px] font-semibold text-white truncate" title={spot.name}>
+                                  {spot.name}
+                                </div>
+                                <div className="text-[9px] text-slate-400 flex items-center justify-between">
+                                  <span>{spot.city}</span>
+                                  <span className="text-emerald-400 font-mono font-medium">{formatCompactNumber(spot.dailyImpressions)} OTS</span>
+                                </div>
+                                <div className="pt-1 flex items-center justify-between border-t border-slate-800 text-[9px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPreviewPhotoSpot({ spot, photoUrl: spotImg });
+                                      setActivePhotoIndex(0);
+                                    }}
+                                    className="text-emerald-400 hover:text-emerald-300 font-medium flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    <Eye className="w-2.5 h-2.5" />
+                                    Foto HD
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(spotImg);
+                                      alert(`Link foto ${spot.name} berhasil disalin!`);
+                                    }}
+                                    className="text-slate-400 hover:text-white flex items-center gap-0.5 cursor-pointer"
+                                    title="Salin tautan gambar lokasi"
+                                  >
+                                    <Copy className="w-2.5 h-2.5" />
+                                    Salin Link
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between text-[11px] text-slate-400">
                     <span className="flex items-center gap-1">
                       <MessageSquare className="w-3 h-3 text-emerald-400" />
@@ -1434,6 +1809,93 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
               {/* TAB 2: EMAIL TEMPLATE */}
               {activeTab === 'email' && (
                 <div className="space-y-3">
+                  {/* Photo Documentation Strip */}
+                  {proposalSpots.length > 0 && (
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+                          <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Dokumentasi Gambar Lokasi Reklame Terpilih ({proposalSpots.length} Titik)</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400">
+                          Klik gambar untuk resolusi HD
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {proposalSpots.map((spot, sIdx) => {
+                          const spotImg = getSpotImageUrl(spot);
+                          return (
+                            <div
+                              key={spot.id}
+                              className="bg-slate-950/80 border border-slate-800 rounded-lg overflow-hidden group hover:border-blue-500/50 transition-all shadow-xs"
+                            >
+                              <div
+                                onClick={() => {
+                                  setPreviewPhotoSpot({ spot, photoUrl: spotImg });
+                                  setActivePhotoIndex(0);
+                                }}
+                                className="relative h-20 w-full bg-slate-900 cursor-pointer overflow-hidden"
+                                title="Klik untuk melihat foto resolusi tinggi"
+                              >
+                                <img
+                                  src={spotImg}
+                                  alt={spot.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
+                                  }}
+                                />
+                                <div className="absolute top-1 left-1 px-1 rounded bg-slate-950/80 text-white font-mono text-[8px] font-bold">
+                                  #{sIdx + 1}
+                                </div>
+                                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <ZoomIn className="w-3.5 h-3.5 text-blue-300 drop-shadow" />
+                                </div>
+                              </div>
+
+                              <div className="p-1.5 space-y-0.5">
+                                <div className="text-[11px] font-semibold text-white truncate" title={spot.name}>
+                                  {spot.name}
+                                </div>
+                                <div className="text-[9px] text-slate-400 flex items-center justify-between">
+                                  <span>{spot.city}</span>
+                                  <span className="text-blue-400 font-mono font-medium">{formatCompactNumber(spot.dailyImpressions)} OTS</span>
+                                </div>
+                                <div className="pt-1 flex items-center justify-between border-t border-slate-800 text-[9px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPreviewPhotoSpot({ spot, photoUrl: spotImg });
+                                      setActivePhotoIndex(0);
+                                    }}
+                                    className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    <Eye className="w-2.5 h-2.5" />
+                                    Foto HD
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(spotImg);
+                                      alert(`Link foto ${spot.name} berhasil disalin!`);
+                                    }}
+                                    className="text-slate-400 hover:text-white flex items-center gap-0.5 cursor-pointer"
+                                    title="Salin tautan gambar lokasi"
+                                  >
+                                    <Copy className="w-2.5 h-2.5" />
+                                    Salin Link
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="text-[11px] font-semibold text-slate-400 block mb-1">
                       Subjek Email
@@ -1859,13 +2321,13 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                 <button
                   type="button"
                   onClick={() => setIsContactFormOpen(false)}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow"
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow cursor-pointer"
                 >
                   Simpan Kontak
                 </button>
@@ -1874,6 +2336,173 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
           </div>
         </div>
       )}
+
+      {/* FULL HD LOCATION PHOTO LIGHTBOX MODAL */}
+      {previewPhotoSpot && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-6 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
+            {/* Lightbox Header */}
+            <div className="px-5 py-3.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-white text-sm sm:text-base truncate">
+                    {previewPhotoSpot.spot.name}
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                    previewPhotoSpot.spot.category === 'DOOH_DIGITAL'
+                      ? 'bg-purple-900/60 text-purple-300 border border-purple-500/40'
+                      : 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40'
+                  }`}>
+                    {previewPhotoSpot.spot.category === 'DOOH_DIGITAL' ? 'DOOH DIGITAL VIDEOTRON' : previewPhotoSpot.spot.mediaType}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                  <span>{previewPhotoSpot.spot.roadName}, {previewPhotoSpot.spot.district}, {previewPhotoSpot.spot.city}</span>
+                  <span>•</span>
+                  <span className="font-mono text-emerald-400">{previewPhotoSpot.spot.size}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={`https://maps.google.com/?q=${previewPhotoSpot.spot.coordinates.lat},${previewPhotoSpot.spot.coordinates.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium flex items-center gap-1.5 border border-slate-700 transition-colors"
+                  title="Buka Google Maps"
+                >
+                  <Compass className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="hidden sm:inline">Survey Maps</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(previewPhotoSpot.photoUrl);
+                    alert('Link gambar lokasi berhasil disalin ke clipboard!');
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium flex items-center gap-1.5 border border-slate-700 transition-colors cursor-pointer"
+                  title="Salin Tautan Gambar"
+                >
+                  <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Salin Link</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewPhotoSpot(null)}
+                  className="p-1.5 bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                  title="Tutup Preview"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Lightbox Image Stage */}
+            <div className="relative flex-1 bg-black/80 flex items-center justify-center p-3 sm:p-6 overflow-hidden min-h-[300px] max-h-[62vh]">
+              <img
+                src={previewPhotoSpot.photoUrl}
+                alt={previewPhotoSpot.spot.name}
+                referrerPolicy="no-referrer"
+                className="max-h-[58vh] max-w-full object-contain rounded-lg shadow-2xl transition-all duration-300"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
+                }}
+              />
+            </div>
+
+            {/* Gallery Thumbnails (if spot has multiple photos) */}
+            {(() => {
+              const allImages = getAllSpotImages(previewPhotoSpot.spot);
+              if (allImages.length > 1) {
+                return (
+                  <div className="px-4 py-2 bg-slate-950 border-t border-slate-800 flex items-center gap-2 overflow-x-auto">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider shrink-0 mr-1">
+                      Foto Lainnya:
+                    </span>
+                    {allImages.map((imgUrl, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setPreviewPhotoSpot({ ...previewPhotoSpot, photoUrl: imgUrl });
+                          setActivePhotoIndex(i);
+                        }}
+                        className={`w-14 h-11 rounded-lg overflow-hidden border-2 shrink-0 transition-all ${
+                          previewPhotoSpot.photoUrl === imgUrl ? 'border-emerald-400 scale-105' : 'border-slate-700 opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <img
+                          src={imgUrl}
+                          alt={`Foto ${i + 1}`}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* Lightbox Footer Specifications */}
+            <div className="px-5 py-3 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3 text-slate-400 flex-wrap">
+                <span className="flex items-center gap-1 text-emerald-400 font-semibold font-mono">
+                  <Eye className="w-3.5 h-3.5" />
+                  {formatCompactNumber(previewPhotoSpot.spot.dailyImpressions)} OTS/hari
+                </span>
+                <span>•</span>
+                <span className="text-slate-300">
+                  Trafik: {formatCompactNumber(previewPhotoSpot.spot.dailyTraffic)} kendaraan/hari
+                </span>
+                <span>•</span>
+                <span className="text-blue-300">
+                  Arah Pandang: {previewPhotoSpot.spot.orientation}
+                </span>
+                <span>•</span>
+                <span className="text-amber-300">
+                  Penerangan: {previewPhotoSpot.spot.lightingType}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-xs font-bold text-white font-mono">
+                    {formatIDR(previewPhotoSpot.spot.pricing.oneMonth)}
+                  </div>
+                  <div className="text-[10px] text-slate-400">Tarif 1 Bulan (Publish)</div>
+                </div>
+
+                <a
+                  href={previewPhotoSpot.photoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Buka Tab Baru</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Drive Photo Picker Modal (suherman.reklame2012@gmail.com) */}
+      <GoogleDrivePhotoPickerModal
+        isOpen={isDrivePickerOpen}
+        onClose={() => {
+          setIsDrivePickerOpen(false);
+          setDrivePickerTargetSpot(null);
+        }}
+        targetSpot={drivePickerTargetSpot || proposalSpots[0] || null}
+        allSpots={proposalSpots}
+        onSelectPhoto={handleDrivePhotoSelected}
+        onBatchSyncPhotos={handleBatchSyncDrivePhotos}
+      />
 
     </div>
   );

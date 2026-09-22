@@ -30,6 +30,8 @@ import { AddEditSpotModal } from './components/AddEditSpotModal';
 import { GoogleWorkspaceModal } from './components/GoogleWorkspaceModal';
 import { AiSecurityModal } from './components/AiSecurityModal';
 import { AiProposalOutreachModal } from './components/AiProposalOutreachModal';
+import { StrategicMediaPlanner } from './components/StrategicMediaPlanner';
+import { EstimatedRoiCalculator } from './components/EstimatedRoiCalculator';
 import { NotificationCenter } from './components/NotificationCenter';
 import { AdminLogin } from './components/AdminLogin';
 import { DEFAULT_MIN_BOUND, DEFAULT_MAX_BOUND } from './components/PriceRangeFilter';
@@ -45,7 +47,8 @@ export default function App() {
   const [spots, setSpots] = useState<MediaSpot[]>(() => getStoredSpots());
   const [notifications, setNotifications] = useState<NotificationLog[]>(() => getStoredNotifications());
   const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'map' | 'analytics' | 'table'>('map');
+  const [activeTab, setActiveTab] = useState<'map' | 'analytics' | 'table' | 'planner' | 'roi'>('map');
+  const [roiSpotId, setRoiSpotId] = useState<string | undefined>(undefined);
 
   // Modals state
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
@@ -328,6 +331,14 @@ export default function App() {
     setIsAiProposalModalOpen(true);
   };
 
+  const handleOpenRoi = (spot?: MediaSpot) => {
+    if (spot) {
+      setRoiSpotId(spot.id);
+    }
+    setActiveTab('roi');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   if (authChecking) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center">
@@ -364,6 +375,7 @@ export default function App() {
         isNotifOpen={isNotifDropdownOpen}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        onOpenEstimatedRoi={() => handleOpenRoi()}
         isFirestoreConnected={isFirestoreConnected}
       />
 
@@ -424,6 +436,8 @@ export default function App() {
           <AnalyticsDashboard
             spots={filteredSpots}
             onSelectSpot={(spot) => setSelectedSpot(spot)}
+            onNavigateToPlanner={() => setActiveTab('planner')}
+            onNavigateToRoi={() => handleOpenRoi()}
           />
         )}
 
@@ -439,7 +453,59 @@ export default function App() {
             onToggleAvailability={handleToggleAvailability}
             onBulkUpdateAvailability={handleBulkUpdateAvailability}
             onOpenAiProposal={(chosenSpots) => handleOpenAiProposal(chosenSpots)}
+            onOpenRoiCalculator={(spot) => handleOpenRoi(spot)}
           />
+        )}
+
+        {/* TAB 4: Strategic Media Planner */}
+        {activeTab === 'planner' && (
+          <StrategicMediaPlanner
+            spots={spots}
+            onSelectSpot={(spot) => setSelectedSpot(spot)}
+            onOpenAiProposal={(chosenSpots) => handleOpenAiProposal(chosenSpots)}
+            onOpenRoiCalculator={(spot) => handleOpenRoi(spot)}
+            onNavigateToComparison={() => {
+              setActiveTab('analytics');
+              setTimeout(() => {
+                const el = document.getElementById('media-comparison-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }, 100);
+            }}
+          />
+        )}
+
+        {/* TAB 5: Estimated ROI Calculator */}
+        {activeTab === 'roi' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                  Kalkulator Estimasi ROI & Rasio Konversi (OOH CTR)
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Simulasi potensi konversi penjualan dan efisiensi biaya kampanye berbasis impresi harian (OTS) serta benchmark CTR 9 kategori industri periklanan OOH Indonesia.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                  Model CTR Dinamis Aktif
+                </span>
+                <span className="text-slate-500">
+                  Tersedia untuk <strong className="text-slate-800">{spots.length}</strong> titik media
+                </span>
+              </div>
+            </div>
+
+            <EstimatedRoiCalculator
+              spots={spots}
+              initialSpotId={roiSpotId}
+              standalone={true}
+              onSelectSpot={(spot) => setSelectedSpot(spot)}
+              onOpenAiProposal={(chosenSpot) => handleOpenAiProposal([chosenSpot])}
+            />
+          </div>
         )}
 
       </main>
@@ -471,6 +537,7 @@ export default function App() {
         onClose={() => setSelectedSpot(null)}
         onToggleAvailability={handleToggleAvailability}
         onOpenAiProposal={(chosenSpot) => handleOpenAiProposal([chosenSpot])}
+        onOpenRoiCalculator={(chosenSpot) => handleOpenRoi(chosenSpot)}
         onEditSpot={(chosenSpot) => {
           setSelectedSpot(null);
           setSpotToEdit(chosenSpot);

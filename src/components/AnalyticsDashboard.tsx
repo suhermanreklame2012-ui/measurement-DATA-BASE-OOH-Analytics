@@ -15,16 +15,26 @@ import {
   Building2,
   PieChart as PieIcon,
   ShieldCheck,
-  Scale
+  Scale,
+  Sparkles,
+  Calculator
 } from 'lucide-react';
 import { MediaComparisonSection } from './MediaComparisonSection';
+import { AiMarketInsightsPanel } from './AiMarketInsightsPanel';
 
 interface AnalyticsDashboardProps {
   spots: MediaSpot[];
   onSelectSpot: (spot: MediaSpot) => void;
+  onNavigateToPlanner?: () => void;
+  onNavigateToRoi?: () => void;
 }
 
-export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ spots, onSelectSpot }) => {
+export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ 
+  spots, 
+  onSelectSpot,
+  onNavigateToPlanner,
+  onNavigateToRoi 
+}) => {
   // Live ticking OTS counter
   const [liveImpressionCounter, setLiveImpressionCounter] = useState<number>(() => {
     const totalDaily = spots.reduce((acc, s) => acc + s.dailyImpressions, 0);
@@ -125,13 +135,40 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ spots, o
               </span>
               <span className="text-sm text-slate-300 font-medium">OTS Views Terukur</span>
             </div>
-            <div className="mt-2">
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <a
+                href="#ai-market-insights-panel"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-400/40 text-xs font-semibold transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                <span>AI Market Insights & High-Growth</span>
+              </a>
+              {onNavigateToPlanner && (
+                <button
+                  type="button"
+                  onClick={onNavigateToPlanner}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  <Calculator className="w-3.5 h-3.5 text-indigo-200" />
+                  <span>Strategic Media Planner (Knapsack)</span>
+                </button>
+              )}
+              {onNavigateToRoi && (
+                <button
+                  type="button"
+                  onClick={onNavigateToRoi}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Estimated ROI Calculator (OOH CTR)</span>
+                </button>
+              )}
               <a
                 href="#media-comparison-section"
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition-colors"
               >
                 <Scale className="w-3.5 h-3.5" />
-                <span>Bandingkan Performa 2-3 Titik Media</span>
+                <span>Bandingkan 2-3 Titik Media</span>
               </a>
             </div>
           </div>
@@ -160,6 +197,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ spots, o
           </div>
         </div>
       </div>
+
+      {/* AI Market Insights Panel: Automated Weekly Traffic Trend Analysis & High-Growth Recommendations */}
+      <AiMarketInsightsPanel 
+        spots={spots} 
+        onSelectSpot={onSelectSpot} 
+      />
 
       {/* Primary Analytics Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

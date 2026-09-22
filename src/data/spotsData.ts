@@ -24,9 +24,9 @@ export const INITIAL_SPOTS: MediaSpot[] = [
     visibilityScore: 92,
     coordinates: { lat: -6.8875, lng: 107.6186 },
     updatedAt: '2026-09-10',
-    imageUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=1200&q=80',
     imageUrls: [
-      'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=1200&q=80',
       'https://images.unsplash.com/photo-1572945550744-570423bf4d72?auto=format&fit=crop&w=1200&q=80',
       'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80'
     ]

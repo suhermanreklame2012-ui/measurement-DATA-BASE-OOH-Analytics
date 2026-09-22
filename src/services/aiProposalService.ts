@@ -1,5 +1,6 @@
 import { MediaSpot, ClientContact, ProposalDuration, ProposalTone, ProposalDraft } from '../types/ooh';
 import { formatIDR, formatCompactNumber } from '../utils/formatters';
+import { getSpotImageUrl } from '../utils/imageUtils';
 
 interface DraftProposalRequest {
   client: ClientContact;
@@ -77,11 +78,13 @@ export function generateLocalProposalFallback(params: DraftProposalRequest): Pro
 
   const spotSummaryLines = spots.map((s, idx) => {
     const sesTier = s.locationType === 'Komersial & Mall' ? 'SES A/B' : 'SES A/B/C+';
+    const photoUrl = getSpotImageUrl(s);
     return `${idx + 1}. *${s.name}* (${s.city})
    • Format: ${s.mediaType} (${s.size}, ${s.layout})
    • Trafik: ~${s.dailyTraffic?.toLocaleString('id-ID')} kend./hari | Impresi: *${s.dailyImpressions?.toLocaleString('id-ID')} OTS/hari*
    • Target Audiens: ${s.locationType} [${sesTier}]
-   • Investasi (${duration}): ${formatIDR(getDurationPrice(s))}`;
+   • Investasi (${duration}): ${formatIDR(getDurationPrice(s))}
+   • 📸 Gambar Lokasi: ${photoUrl}`;
   }).join('\n\n');
 
   // WhatsApp Message

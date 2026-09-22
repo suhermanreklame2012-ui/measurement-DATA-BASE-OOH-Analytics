@@ -15,7 +15,10 @@ import {
   Send,
   LogOut,
   FolderArchive,
-  ChevronDown
+  ChevronDown,
+  Calculator,
+  Sparkles,
+  TrendingUp
 } from 'lucide-react';
 import { MediaSpot, NotificationLog } from '../types/ooh';
 import { formatCompactNumber } from '../utils/formatters';
@@ -31,10 +34,11 @@ interface HeaderProps {
   onOpenReport: () => void;
   onOpenAiSecurity: () => void;
   onOpenAiProposal: () => void;
+  onOpenEstimatedRoi?: () => void;
   onToggleNotif: () => void;
   isNotifOpen: boolean;
-  activeTab: 'map' | 'analytics' | 'table';
-  setActiveTab: (tab: 'map' | 'analytics' | 'table') => void;
+  activeTab: 'map' | 'analytics' | 'table' | 'planner' | 'roi';
+  setActiveTab: (tab: 'map' | 'analytics' | 'table' | 'planner' | 'roi') => void;
   isFirestoreConnected?: boolean;
 }
 
@@ -47,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenReport,
   onOpenAiSecurity,
   onOpenAiProposal,
+  onOpenEstimatedRoi,
   onToggleNotif,
   isNotifOpen,
   activeTab,
@@ -193,7 +198,7 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
-                        6 Menu
+                        8 Menu
                       </span>
                     </div>
                   </div>
@@ -292,6 +297,66 @@ export const Header: React.FC<HeaderProps> = ({
                     <div className="px-2 pt-1 pb-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       Otomasi & Pemasaran
                     </div>
+
+                    {/* Strategic Media Planner */}
+                    <button
+                      type="button"
+                      id="menu-strategic-planner-btn"
+                      onClick={() => {
+                        setIsMasterMenuOpen(false);
+                        setActiveTab('planner');
+                      }}
+                      className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left hover:bg-slate-800/80 transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                        <Calculator className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors">
+                            Strategic Media Planner
+                          </span>
+                          <span className="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 px-1.5 py-0.2 rounded border border-indigo-500/30">
+                            AI Knapsack
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          Optimasi anggaran & maksimalkan jangkauan OTS
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Estimated ROI Calculator */}
+                    <button
+                      type="button"
+                      id="menu-estimated-roi-btn"
+                      onClick={() => {
+                        setIsMasterMenuOpen(false);
+                        if (onOpenEstimatedRoi) {
+                          onOpenEstimatedRoi();
+                        } else {
+                          setActiveTab('roi');
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left hover:bg-slate-800/80 transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                        <TrendingUp className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors">
+                            Estimated ROI Calculator
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                            OOH CTR
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          Kalkulasi konversi dari impresi harian & CTR industri
+                        </p>
+                      </div>
+                    </button>
 
                     {/* Penawaran AI */}
                     <button
@@ -449,6 +514,42 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Layers className="w-3.5 h-3.5" />
               Database Media ({totalSpots})
+            </button>
+            <button
+              onClick={() => setActiveTab('planner')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === 'planner'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              <Calculator className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Strategic Media Planner</span>
+              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                activeTab === 'planner' 
+                  ? 'bg-white/20 text-white' 
+                  : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+              }`}>
+                AI Budget
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('roi')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === 'roi'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Estimated ROI</span>
+              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                activeTab === 'roi' 
+                  ? 'bg-white/20 text-white' 
+                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              }`}>
+                CTR Model
+              </span>
             </button>
           </nav>
 

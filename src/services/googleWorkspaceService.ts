@@ -43,6 +43,20 @@ export interface DriveFolderInfo {
   webViewLink?: string;
 }
 
+export interface DrivePhotoItem {
+  id: string;
+  name: string;
+  mimeType: string;
+  modifiedTime: string;
+  size?: string;
+  webViewLink?: string;
+  thumbnailLink?: string;
+  directEmbedUrl: string;
+  width?: number;
+  height?: number;
+  parents?: string[];
+}
+
 /**
  * Designated Target Google Drive Folder restricted by admin suherman.reklame2012@gmail.com
  */
@@ -524,5 +538,187 @@ export async function createOrSyncOOHSpreadsheet(
     mimeType: 'application/vnd.google-apps.spreadsheet',
     modifiedTime: new Date().toISOString(),
     webViewLink: `https://docs.google.com/spreadsheets/d/${targetId}/edit`
+  };
+}
+
+/**
+  * Retrieve image files from Google Drive of suherman.reklame2012@gmail.com
+  * Supports folder-targeted query, whole-drive fallback, and name search.
+  */
+export async function listDrivePhotos(
+  accessToken: string,
+  options?: {
+    search?: string;
+    folderOnly?: boolean;
+    folderId?: string;
+    pageSize?: number;
+  }
+): Promise<DrivePhotoItem[]> {
+  const targetFolderId = options?.folderId || TARGET_DRIVE_FOLDER_ID;
+  const folderOnly = options?.folderOnly ?? true;
+
+  let query = "mimeType contains 'image/' and trashed = false";
+
+  if (folderOnly) {
+    query = `'${targetFolderId}' in parents and ${query}`;
+  }
+
+  if (options?.search && options.search.trim()) {
+    const cleanSearch = options.search.trim().replace(/'/g, "\\'");
+    query += ` and name contains '${cleanSearch}'`;
+  }
+
+  const url = new URL('https://www.googleapis.com/drive/v3/files');
+  url.searchParams.set('q', query);
+  url.searchParams.set('pageSize', (options?.pageSize || 60).toString());
+  url.searchParams.set('orderBy', 'modifiedTime desc');
+  url.searchParams.set('supportsAllDrives', 'true');
+  url.searchParams.set('includeItemsFromAllDrives', 'true');
+  url.searchParams.set(
+    'fields',
+    'files(id, name, mimeType, modifiedTime, size, webViewLink, thumbnailLink, imageMediaMetadata(width, height), parents)'
+  );
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json'
+    }
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Gagal membaca foto dari Google Drive (${res.status})`);
+  }
+
+  const data = await res.json();
+  const files: any[] = data.files || [];
+
+  // If folderOnly query yielded 0 results, fall back seamlessly to querying all images across user's Google Drive
+  if (folderOnly && files.length === 0 && !options?.search) {
+    return listDrivePhotos(accessToken, { ...options, folderOnly: false });
+  }
+
+  return files.map((f) => ({
+    id: f.id,
+    name: f.name,
+    mimeType: f.mimeType,
+    modifiedTime: f.modifiedTime,
+    size: f.size,
+    webViewLink: f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`,
+    thumbnailLink: f.thumbnailLink || `https://lh3.googleusercontent.com/d/${f.id}=s400`,
+    directEmbedUrl: `https://lh3.googleusercontent.com/d/${f.id}`,
+    width: f.imageMediaMetadata?.width,
+    height: f.imageMediaMetadata?.height,
+    parents: f.parents
+  }));
+}
+
+/**
+ * Fetch raw image media from Google Drive with OAuth Bearer token and convert to base64 Data URL.
+ * Bypasses CORS and works seamlessly for non-public Google Drive files.
+ */
+export async function fetchDriveImageAsBase64(
+  accessToken: string,
+  fileId: string
+): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      }
+    );
+    if (!res.ok) {
+      console.warn(`Failed to fetch media for file ${fileId}: status ${res.status}`);
+      return null;
+    }
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = () => {
+        resolve(null);
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    console.warn(`Error fetching Drive photo base64 for ${fileId}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Upload a new billboard photo directly to the designated Google Drive folder
+ * under account suherman.reklame2012@gmail.com
+ */
+export async function uploadPhotoToDriveFolder(
+  accessToken: string,
+  file: File,
+  folderId = TARGET_DRIVE_FOLDER_ID
+): Promise<DrivePhotoItem> {
+  const metadata = {
+    name: file.name,
+    mimeType: file.type || 'image/jpeg',
+    parents: [folderId]
+  };
+
+  const boundary = '-------314159265358979323846';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelimiter = `\r\n--${boundary}--`;
+
+  const reader = new FileReader();
+  const fileData = await new Promise<ArrayBuffer>((resolve, reject) => {
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+
+  const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
+  const fileBlob = new Blob([fileData], { type: file.type || 'image/jpeg' });
+
+  const multipartBody = new Blob([
+    delimiter,
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n',
+    metadataBlob,
+    delimiter,
+    `Content-Type: ${file.type || 'image/jpeg'}\r\n\r\n`,
+    fileBlob,
+    closeDelimiter
+  ]);
+
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,mimeType,modifiedTime,size,webViewLink,thumbnailLink,imageMediaMetadata(width,height)',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`
+      },
+      body: multipartBody
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Gagal mengunggah foto ke Google Drive (${res.status})`);
+  }
+
+  const uploaded = await res.json();
+  return {
+    id: uploaded.id,
+    name: uploaded.name,
+    mimeType: uploaded.mimeType,
+    modifiedTime: uploaded.modifiedTime,
+    size: uploaded.size,
+    webViewLink: uploaded.webViewLink || `https://drive.google.com/file/d/${uploaded.id}/view`,
+    thumbnailLink: uploaded.thumbnailLink || `https://lh3.googleusercontent.com/d/${uploaded.id}=s400`,
+    directEmbedUrl: `https://lh3.googleusercontent.com/d/${uploaded.id}`,
+    width: uploaded.imageMediaMetadata?.width,
+    height: uploaded.imageMediaMetadata?.height
   };
 }

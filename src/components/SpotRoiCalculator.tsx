@@ -15,11 +15,13 @@ import {
   Plus,
   Tag,
   Calendar,
-  Zap
+  Zap,
+  FileDown
 } from 'lucide-react';
 import { MediaSpot } from '../types/ooh';
 import { formatIDR, formatCompactNumber, formatCompactIDR } from '../utils/formatters';
 import { calculateCampaignPricing, CampaignDurationPricing } from '../utils/pricing';
+import { exportEstimatedRoiPDF, RoiSimulationData } from '../utils/roiPdfExport';
 
 interface SpotRoiCalculatorProps {
   spot: MediaSpot;
@@ -172,6 +174,30 @@ Total Biaya Sewa: ${formatIDR(totalPrice)} (${formatIDR(effectiveMonthlyRate)}/b
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExportPdf = () => {
+    const simData: RoiSimulationData = {
+      spot,
+      months: activeMonths,
+      days,
+      totalCost: totalPrice,
+      totalImpressions,
+      industryName: 'Simulasi OOH Spot',
+      industryCtr: conversionRate,
+      postClickConversionRate: 8,
+      avgOrderValue,
+      potentialEngagements: Math.max(1, Math.round(totalImpressions * (conversionRate / 100))),
+      potentialConversions: estimatedConversions,
+      projectedRevenue,
+      netProfit,
+      roiPercentage,
+      cpa: totalPrice / Math.max(1, estimatedConversions),
+      cpm,
+      breakEvenConversions: breakEvenCustomers,
+      breakEvenCtrNeeded: breakEvenRate
+    };
+    exportEstimatedRoiPDF(simData);
   };
 
   return (
@@ -504,6 +530,16 @@ Total Biaya Sewa: ${formatIDR(totalPrice)} (${formatIDR(effectiveMonthlyRate)}/b
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-colors cursor-pointer"
+                title="Unduh laporan proyeksi ROI dalam format PDF resmi"
+              >
+                <FileDown className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Ekspor PDF</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleCopySummary}

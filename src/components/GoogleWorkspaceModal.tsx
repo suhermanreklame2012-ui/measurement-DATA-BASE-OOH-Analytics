@@ -25,7 +25,11 @@ import {
   Users,
   Phone,
   Mail,
-  MessageCircle
+  MessageCircle,
+  Image as ImageIcon,
+  Upload,
+  Sparkles,
+  Filter
 } from 'lucide-react';
 import { MediaSpot, ClientContact } from '../types/ooh';
 import { getStoredClients } from '../services/clientService';
@@ -45,11 +49,14 @@ import {
   listDriveFiles, 
   listGoogleDocs, 
   listGoogleSheets,
+  listDrivePhotos,
+  uploadPhotoToDriveFolder,
   createOOHReportDocInDrive, 
   createOrSyncOOHSpreadsheet,
   fetchSpreadsheetDetails,
   fetchSpreadsheetValues,
   DriveFileItem,
+  DrivePhotoItem,
   TARGET_DRIVE_FOLDER_ID,
   TARGET_DRIVE_FOLDER_URL,
   fetchTargetFolderMetadata,
@@ -57,27 +64,38 @@ import {
   SpreadsheetInfo,
   SpreadsheetValuesResult
 } from '../services/googleWorkspaceService';
-import { addNotification } from '../services/storageService';
+import { addNotification, getStoredSpots, saveStoredSpots } from '../services/storageService';
 
 interface GoogleWorkspaceModalProps {
   isOpen: boolean;
   onClose: () => void;
   spots: MediaSpot[];
-  initialSubTab?: 'sheets' | 'docs' | 'drive' | 'contacts' | 'create';
+  initialSubTab?: 'sheets' | 'docs' | 'drive' | 'photos' | 'contacts' | 'create';
+  onSpotUpdated?: (spot: MediaSpot) => void;
 }
 
 export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
   isOpen,
   onClose,
   spots,
-  initialSubTab = 'sheets'
+  initialSubTab = 'sheets',
+  onSpotUpdated
 }) => {
   const adminEmail = 'suherman.reklame2012@gmail.com';
 
   const [user, setUser] = useState<any>(getCurrentUser());
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<'sheets' | 'docs' | 'drive' | 'contacts' | 'create'>(initialSubTab);
+  const [activeSubTab, setActiveSubTab] = useState<'sheets' | 'docs' | 'drive' | 'photos' | 'contacts' | 'create'>(initialSubTab);
+
+  // Photos state (Google Drive suherman.reklame2012@gmail.com)
+  const [drivePhotos, setDrivePhotos] = useState<DrivePhotoItem[]>([]);
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState<boolean>(false);
+  const [photosFolderOnly, setPhotosFolderOnly] = useState<boolean>(true);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  const [photoUploadSuccess, setPhotoUploadSuccess] = useState<string | null>(null);
+  const [photoSearchQuery, setPhotoSearchQuery] = useState<string>('');
+  const photoFileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Contacts state
   const [clientsList, setClientsList] = useState<ClientContact[]>(getStoredClients());
@@ -169,6 +187,14 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
       } else if (activeSubTab === 'drive') {
         const files = await listDriveFiles(currentToken);
         setDriveList(files);
+      } else if (activeSubTab === 'photos') {
+        setIsLoadingPhotos(true);
+        try {
+          const photos = await listDrivePhotos(currentToken, { folderOnly: photosFolderOnly });
+          setDrivePhotos(photos);
+        } finally {
+          setIsLoadingPhotos(false);
+        }
       }
     } catch (err: any) {
       console.error('Workspace fetch error:', err);
@@ -178,6 +204,134 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
     } finally {
       setIsLoadingFiles(false);
     }
+  };
+
+  const handleLoadDrivePhotos = async (onlyFolder: boolean = photosFolderOnly) => {
+    let currentToken = token;
+    if (!currentToken) {
+      const auth = await googleSignIn();
+      if (!auth?.accessToken) return;
+      currentToken = auth.accessToken;
+      setUser(auth.user);
+      setToken(currentToken);
+    }
+    setIsLoadingPhotos(true);
+    setErrorMessage(null);
+    try {
+      const photos = await listDrivePhotos(currentToken, { folderOnly: onlyFolder });
+      setDrivePhotos(photos);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMessage(err.message || 'Gagal memuat daftar foto dari Google Drive.');
+    } finally {
+      setIsLoadingPhotos(false);
+    }
+  };
+
+  const handleUploadPhoto = async (file: File) => {
+    let currentToken = token;
+    if (!currentToken) {
+      const auth = await googleSignIn();
+      if (!auth?.accessToken) return;
+      currentToken = auth.accessToken;
+      setUser(auth.user);
+      setToken(currentToken);
+    }
+    setIsUploadingPhoto(true);
+    setPhotoUploadSuccess(null);
+    setErrorMessage(null);
+    try {
+      const uploaded = await uploadPhotoToDriveFolder(currentToken, file, TARGET_DRIVE_FOLDER_ID);
+      setDrivePhotos(prev => [uploaded, ...prev]);
+      setPhotoUploadSuccess(`Foto "${file.name}" berhasil diunggah ke folder Google Drive!`);
+      addNotification({
+        title: 'Foto OOH Diunggah ke Drive',
+        message: `Foto ${file.name} telah tersimpan di folder Google Drive (suherman.reklame2012@gmail.com).`,
+        type: 'sync'
+      });
+    } catch (err: any) {
+      console.error('Upload failed:', err);
+      setErrorMessage(err.message || 'Gagal mengunggah foto ke Google Drive.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleAssignPhotoToSpot = (photoUrl: string, spotId: string) => {
+    const allStored = getStoredSpots();
+    const updated = allStored.map(s => {
+      if (s.id === spotId) {
+        return {
+          ...s,
+          imageUrl: photoUrl,
+          imageUrls: [photoUrl, ...(s.imageUrls || []).filter(u => u !== photoUrl)]
+        };
+      }
+      return s;
+    });
+    saveStoredSpots(updated);
+    addNotification({
+      title: 'Foto Lokasi Ditugaskan',
+      message: `Foto dari Google Drive berhasil dipasangkan ke titik ${spotId}.`,
+      type: 'update'
+    });
+    if (onSpotUpdated) {
+      const found = updated.find(s => s.id === spotId);
+      if (found) onSpotUpdated(found);
+    }
+    alert(`Foto dari Google Drive berhasil dipasangkan ke titik ${spotId}!`);
+  };
+
+  const handleAutoMatchPhotos = () => {
+    if (drivePhotos.length === 0 || spots.length === 0) return;
+    const assignments: Array<{ spotId: string; photoUrl: string }> = [];
+    const allStored = getStoredSpots();
+
+    for (const spot of allStored) {
+      const spotNameLower = spot.name.toLowerCase();
+      const spotRoadLower = (spot.roadName || '').toLowerCase();
+      const spotIdLower = spot.id.toLowerCase();
+
+      const matchedPhoto = drivePhotos.find(p => {
+        const pNameLower = p.name.toLowerCase();
+        return (
+          pNameLower.includes(spotIdLower) ||
+          (spot.district && pNameLower.includes(spot.district.toLowerCase())) ||
+          (spotRoadLower.length > 5 && pNameLower.includes(spotRoadLower.replace('jl.', '').trim())) ||
+          (spotNameLower.length > 5 && pNameLower.includes(spotNameLower.slice(0, 15).trim()))
+        );
+      });
+
+      if (matchedPhoto) {
+        assignments.push({ spotId: spot.id, photoUrl: matchedPhoto.previewUrl });
+      }
+    }
+
+    if (assignments.length === 0) {
+      alert('Tidak ditemukan kesamaan nama file foto dengan nama jalan atau ID titik reklame. Anda dapat memasangkan foto secara manual dengan memilih titik pada foto yang diinginkan.');
+      return;
+    }
+
+    const map = new Map(assignments.map(a => [a.spotId, a.photoUrl]));
+    const nextSpots = allStored.map(s => {
+      if (map.has(s.id)) {
+        const photoUrl = map.get(s.id)!;
+        return {
+          ...s,
+          imageUrl: photoUrl,
+          imageUrls: [photoUrl, ...(s.imageUrls || []).filter(u => u !== photoUrl)]
+        };
+      }
+      return s;
+    });
+    saveStoredSpots(nextSpots);
+    addNotification({
+      title: 'Auto-Match Foto Selesai',
+      message: `${assignments.length} titik reklame berhasil dipasangkan foto dari Google Drive.`,
+      type: 'sync',
+      itemCount: assignments.length
+    });
+    alert(`Berhasil memasangkan foto Google Drive ke ${assignments.length} titik reklame secara otomatis!`);
   };
 
   const handleSyncContactsFromModal = async () => {
@@ -589,6 +743,23 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
                   >
                     <HardDrive className="w-3.5 h-3.5" />
                     Semua Berkas ({driveList.length})
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveSubTab('photos');
+                      if (token) {
+                        handleLoadDrivePhotos(photosFolderOnly);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                      activeSubTab === 'photos'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'text-purple-700 bg-purple-50/60 hover:bg-purple-100/80 border border-purple-200/60'
+                    }`}
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    Foto Lokasi Reklame ({drivePhotos.length})
                   </button>
 
                   <button
@@ -1017,6 +1188,232 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
                               <span>Buka File</span>
                               <ExternalLink className="w-3 h-3" />
                             </a>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sub-tab: Foto & Galeri Lokasi Google Drive (suherman.reklame2012@gmail.com) */}
+              {activeSubTab === 'photos' && (
+                <div className="space-y-4">
+                  {/* Photo Management Banner */}
+                  <div className="p-4 rounded-xl bg-gradient-to-r from-purple-50 via-indigo-50/60 to-slate-50 border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                        <ImageIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-slate-900 text-sm">
+                            Foto Lokasi Reklame dari Google Drive
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                            suherman.reklame2012@gmail.com
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                          Foto fisik titik baliho, billboard, dan bando jalanan yang tersimpan di Google Drive resmi admin dimuat secara otomatis untuk disertakan ke lampiran PDF penawaran klien.
+                        </p>
+                        <div className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+                          <span>
+                            {drivePhotos.length} foto tersedia di akun Google Drive admin
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+                      <input
+                        type="file"
+                        ref={photoFileInputRef}
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadPhoto(file);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => photoFileInputRef.current?.click()}
+                        disabled={isUploadingPhoto}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg text-xs shadow-xs transition-colors disabled:opacity-60 cursor-pointer"
+                        title="Unggah foto baru langsung ke folder Google Drive"
+                      >
+                        {isUploadingPhoto ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Mengunggah...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>Unggah Foto ke Drive</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleAutoMatchPhotos}
+                        disabled={drivePhotos.length === 0}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                        title="Otomatis pasangkan foto ke titik reklame yang sesuai berdasarkan nama jalan atau kode titik"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Auto-Match ke Titik</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleLoadDrivePhotos(photosFolderOnly)}
+                        disabled={isLoadingPhotos}
+                        className="p-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                        title="Muat ulang foto dari Google Drive"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isLoadingPhotos ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {photoUploadSuccess && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        {photoUploadSuccess}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPhotoUploadSuccess(null)}
+                        className="text-emerald-600 hover:text-emerald-800 text-xs font-bold"
+                      >
+                        Tutup
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Filter & Search Bar */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                    <div className="relative w-full sm:w-72">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Cari foto berdasarkan nama..."
+                        value={photoSearchQuery}
+                        onChange={(e) => setPhotoSearchQuery(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-3 self-end sm:self-auto text-xs">
+                      <label className="flex items-center gap-1.5 text-slate-600 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={photosFolderOnly}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setPhotosFolderOnly(val);
+                            handleLoadDrivePhotos(val);
+                          }}
+                          className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 w-3.5 h-3.5"
+                        />
+                        <span className="font-medium text-slate-700">Hanya Folder Target ({TARGET_DRIVE_FOLDER_ID.slice(0, 8)}...)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Photos Grid */}
+                  {isLoadingPhotos ? (
+                    <div className="py-16 text-center text-slate-400 space-y-2">
+                      <RefreshCw className="w-7 h-7 animate-spin mx-auto text-purple-600" />
+                      <p className="text-xs">Mengambil foto-foto lokasi dari akun Google Drive suherman.reklame2012@gmail.com...</p>
+                    </div>
+                  ) : drivePhotos.length === 0 ? (
+                    <div className="p-10 border border-dashed border-purple-200 rounded-2xl text-center space-y-3 bg-purple-50/20">
+                      <div className="w-12 h-12 mx-auto rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
+                        <ImageIcon className="w-6 h-6" />
+                      </div>
+                      <div className="font-bold text-slate-800 text-sm">Belum Ada Foto Lokasi di Google Drive Folder Ini</div>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                        Folder target Google Drive Anda belum memiliki file foto atau gambar. Silakan unggah foto papan reklame Anda langsung ke Google Drive melalui tombol di atas atau seret foto ke folder Anda.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => photoFileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg text-xs shadow-xs transition-colors cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Unggah Foto Sekarang</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-1">
+                      {drivePhotos
+                        .filter((p) => !photoSearchQuery || p.name.toLowerCase().includes(photoSearchQuery.toLowerCase()))
+                        .map((photo) => (
+                          <div
+                            key={photo.id}
+                            className="bg-white border border-slate-200 rounded-xl overflow-hidden hover:border-purple-400 hover:shadow-md transition-all flex flex-col group"
+                          >
+                            <div className="relative aspect-video bg-slate-950 overflow-hidden">
+                              <img
+                                src={photo.thumbnailUrl || photo.previewUrl}
+                                alt={photo.name}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = photo.previewUrl;
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                                <a
+                                  href={photo.webViewLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[10px] text-white hover:underline flex items-center gap-1"
+                                >
+                                  <span>Buka di Drive</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              </div>
+                            </div>
+
+                            <div className="p-2.5 flex-1 flex flex-col justify-between gap-2">
+                              <div>
+                                <div className="text-xs font-semibold text-slate-900 truncate" title={photo.name}>
+                                  {photo.name}
+                                </div>
+                                <div className="text-[10px] text-slate-400 flex items-center justify-between mt-0.5">
+                                  <span>{photo.size ? `${(photo.size / (1024 * 1024)).toFixed(1)} MB` : 'Foto'}</span>
+                                  <span>{photo.createdTime ? new Date(photo.createdTime).toLocaleDateString('id-ID') : ''}</span>
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100">
+                                <label className="text-[9px] font-bold text-slate-500 block mb-1">
+                                  Pasang ke Titik Reklame:
+                                </label>
+                                <select
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleAssignPhotoToSpot(photo.previewUrl, e.target.value);
+                                    }
+                                  }}
+                                  defaultValue=""
+                                  className="w-full text-[10px] px-1.5 py-1 bg-slate-50 border border-slate-200 rounded text-slate-700 focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                                >
+                                  <option value="" disabled>Pilih Titik Reklame...</option>
+                                  {spots.map((spot) => (
+                                    <option key={spot.id} value={spot.id}>
+                                      {spot.id} - {spot.name.slice(0, 24)}...
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
                           </div>
                         ))}
                     </div>

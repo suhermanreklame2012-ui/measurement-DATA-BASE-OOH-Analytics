@@ -1,6 +1,6 @@
 {
   "name": "Database Media OOH & DOOH Bandung - Jawa Barat",
-  "description": "Sistem pengukuran media OOH & DOOH Kota Bandung dan Jawa Barat dengan visualisasi heatmap impresi spasial, analisis tren real-time, sinkronisasi otomatis Google Drive, Google Docs, Google Sheets, buku kontak Google Contacts (suherman.reklame2012@gmail.com), dan ekspor laporan PDF bulanan.",
+  "description": "Sistem pengukuran media OOH & DOOH Kota Bandung dan Jawa Barat dengan Strategic Media Planner optimasi budget knapsack, Estimated ROI Calculator berbasis benchmark CTR 9 kategori industri, visualisasi heatmap spasial, analisis tren real-time, sinkronisasi Google Workspace, dan ekspor PDF resmi.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

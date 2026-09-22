@@ -569,11 +569,13 @@ Keluarkan output dalam JSON murni (tanpa tag markdown) dengan skema:
         const spotLines = spots.map((s: any, idx: number) => {
           const sesTier = s.locationType === 'Komersial & Mall' ? 'SES A/B (Commercial Hub)' : 
                           s.locationType === 'Pusat Kota & Protokol' ? 'SES A/B (Main Protocol)' : 'SES B/C+ (Arteri & Commuter)';
+          const photoUrl = s.imageUrl || (s.imageUrls && s.imageUrls[0]) || s.photoUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80';
           return `${idx + 1}. *${s.name}* (${s.city})
    • Format: ${s.mediaType} (${s.size}, ${s.layout})
    • Trafik: ~${s.dailyTraffic?.toLocaleString('id-ID')} kend./hari | Impresi: *${s.dailyImpressions?.toLocaleString('id-ID')} OTS/hari*
    • Target Audiens: ${sesTier}
-   • Investasi (${duration}): Rp ${Math.round(getDurationPrice(s)).toLocaleString('id-ID')}`;
+   • Investasi (${duration}): Rp ${Math.round(getDurationPrice(s)).toLocaleString('id-ID')}
+   • 📸 Gambar Lokasi: ${photoUrl}`;
         }).join('\n\n');
 
         whatsappText = `*PROPOSAL PENAWARAN MEDIA OOH & DOOH STRATEGIS JAWA BARAT*
@@ -669,6 +671,90 @@ Email: suherman.reklame2012@gmail.com`;
     } catch (err: any) {
       console.error('Error in /api/ai/draft-proposal:', err);
       res.status(500).json({ error: err.message || 'Gagal membuat draft proposal AI' });
+    }
+  });
+
+  // AI Market Insights Endpoint (Weekly traffic analysis & High-Growth recommendations)
+  app.post('/api/ai/market-insights', async (req, res) => {
+    try {
+      const {
+        spotsCount,
+        averageWeeklyGrowth,
+        peakDayName,
+        topSurgeCorridor,
+        highGrowthSpotsSample
+      } = req.body;
+
+      let executiveSummary = '';
+      let strategicRecommendations: string[] = [];
+
+      if (process.env.GEMINI_API_KEY) {
+        try {
+          const ai = getAi();
+          const prompt = `Anda adalah Direktur Intelijen Pasar dan Analis Trafik OOH/DOOH senior untuk Suherman Reklame di Jawa Barat (Bandung Raya & sekitarnya).
+Berdasarkan data telemetri lalu lintas mingguan terbaru:
+- Total Titik Terpantau: ${spotsCount} lokasi
+- Rerata Pertumbuhan Arus Lalu Lintas (WoW): +${averageWeeklyGrowth}%
+- Hari Puncak Mobilitas (Peak Day): ${peakDayName}
+- Koridor Lonjakan Tertinggi: ${topSurgeCorridor}
+- Sampel Titik Rekomendasi High-Growth Teratas:
+${JSON.stringify(highGrowthSpotsSample || [], null, 2)}
+
+Tugas:
+1. Tulis ringkasan eksekutif pasar (executiveSummary) maksimal 3-4 kalimat dalam Bahasa Indonesia yang formal, meyakinkan, berbasis data (tanpa hype kosong). Sebutkan lonjakan akhir pekan vs hari kerja dan peluang bagi pengiklan.
+2. Berikan 3 poin rekomendasi strategis konkret (strategicRecommendations) untuk media planner dan pengiklan (misal penempatan materi, jam tayang, dan pemilihan koridor).
+
+Keluarkan format JSON murni:
+{
+  "executiveSummary": "string",
+  "strategicRecommendations": ["string", "string", "string"]
+}`;
+
+          const response = await withTimeout(
+            ai.models.generateContent({
+              model: 'gemini-3.8-flash',
+              contents: prompt
+            }),
+            5000
+          );
+
+          if (response && response.text) {
+            const rawText = response.text.trim();
+            const match = rawText.match(/\{[\s\S]*\}/);
+            if (match) {
+              const parsed = JSON.parse(match[0]);
+              if (parsed.executiveSummary) executiveSummary = parsed.executiveSummary;
+              if (Array.isArray(parsed.strategicRecommendations)) {
+                strategicRecommendations = parsed.strategicRecommendations;
+              }
+            }
+          }
+        } catch (aiErr: any) {
+          console.warn('Gemini Market Insights error or timeout, utilizing heuristic generator:', aiErr?.message);
+        }
+      }
+
+      if (!executiveSummary) {
+        executiveSummary = `Analisis telemetri mingguan mengidentifikasi akselerasi mobilitas rata-rata +${averageWeeklyGrowth || 13.8}% WoW di koridor Jawa Barat. Puncak pergerakan tercatat pada ${peakDayName || 'Sabtu'} dengan dominasi arus di ${topSurgeCorridor || 'Bandung Raya'}, memberikan peningkatan efisiensi impresi OTS harian yang signifikan bagi kampanye multi-format OOH & DOOH.`;
+      }
+
+      if (strategicRecommendations.length === 0) {
+        strategicRecommendations = [
+          `Optimalkan materi bertarget 'Brand Awareness' di koridor gerbang tol dan pusat perbelanjaan untuk menjaring kenaikan trafik akhir pekan (+${Math.round((averageWeeklyGrowth || 13) * 1.35)}% vs hari kerja).`,
+          `Prioritaskan titik berstatus 'Available' di persimpangan lampu merah utama dengan waktu pandang 60-90 detik guna memaksimalkan retensi visual.`,
+          `Kombinasikan penayangan DOOH dinamis pada jam sibuk (07.00-09.30 & 16.30-20.30 WIB) untuk efisiensi biaya CPM terbaik.`
+        ];
+      }
+
+      res.json({
+        success: true,
+        executiveSummary,
+        strategicRecommendations,
+        generatedAt: new Date().toISOString()
+      });
+    } catch (err: any) {
+      console.error('Error in /api/ai/market-insights:', err);
+      res.status(500).json({ error: err.message || 'Gagal memproses AI Market Insights' });
     }
   });
 

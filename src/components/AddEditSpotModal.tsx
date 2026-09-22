@@ -21,6 +21,7 @@ import { MediaSpot, MediaCategory, MediaType, LocationType, TrafficDensity } fro
 import { addNotification } from '../services/storageService';
 import { auditSpotWithAI } from '../services/aiSecurityService';
 import { formatImageUrl, getPhotoSourceLabel, isGoogleDriveUrl } from '../utils/imageUtils';
+import { GoogleDrivePhotoPickerModal } from './GoogleDrivePhotoPickerModal';
 
 interface AddEditSpotModalProps {
   isOpen: boolean;
@@ -62,6 +63,7 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
   const [urlInput, setUrlInput] = useState<string>('');
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDrivePickerOpen, setIsDrivePickerOpen] = useState<boolean>(false);
 
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [aiWarning, setAiWarning] = useState<string | null>(null);
@@ -465,9 +467,20 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
 
             {/* URL or Google Drive Link Input Box */}
             <div className="space-y-1.5">
-              <div className="text-[11px] font-medium text-slate-700 flex items-center gap-1">
-                <Link2 className="w-3.5 h-3.5 text-slate-500" />
-                Atau masukkan tautan Google Drive / Web Image URL:
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-medium text-slate-700 flex items-center gap-1">
+                  <Link2 className="w-3.5 h-3.5 text-slate-500" />
+                  Tautan Foto / Google Drive:
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDrivePickerOpen(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-lg text-[11px] font-semibold border border-sky-200 transition-colors cursor-pointer"
+                  title="Ambil foto langsung dari Google Drive suherman.reklame2012@gmail.com"
+                >
+                  <HardDrive className="w-3 h-3 text-sky-600" />
+                  <span>Pilih dari Drive</span>
+                </button>
               </div>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -626,6 +639,16 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
         </form>
 
       </div>
+
+      {/* Google Drive Photo Picker Modal (suherman.reklame2012@gmail.com) */}
+      <GoogleDrivePhotoPickerModal
+        isOpen={isDrivePickerOpen}
+        onClose={() => setIsDrivePickerOpen(false)}
+        targetSpot={existingSpot || null}
+        onSelectPhoto={(photoUrl) => {
+          setImageUrls(prev => [photoUrl, ...prev.filter(u => u !== photoUrl)]);
+        }}
+      />
     </div>
   );
 };

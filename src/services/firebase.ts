@@ -61,16 +61,27 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-export async function testFirestoreConnection(): Promise<boolean> {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    return true;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firebase client is offline or initial connection pending.');
+export async function testFirestoreConnection(retries = 2): Promise<boolean> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      await getDocFromServer(doc(db, 'test', 'connection'));
+      return true;
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (attempt < retries) {
+        // Wait briefly before retrying
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+      if (errMsg.includes('the client is offline') || errMsg.includes('unavailable')) {
+        console.warn('Firestore backend initializing or client operating in resilient offline cache mode.');
+      } else {
+        console.warn('Firestore connection check notice:', errMsg);
+      }
+      return false;
     }
-    return false;
   }
+  return false;
 }
 
 export async function signInWithGooglePopup() {

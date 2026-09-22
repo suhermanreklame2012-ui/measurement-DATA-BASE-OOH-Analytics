@@ -14,8 +14,10 @@ import {
   Clock, 
   Building2,
   PieChart as PieIcon,
-  ShieldCheck
+  ShieldCheck,
+  Scale
 } from 'lucide-react';
+import { MediaComparisonSection } from './MediaComparisonSection';
 
 interface AnalyticsDashboardProps {
   spots: MediaSpot[];
@@ -122,6 +124,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ spots, o
                 {liveImpressionCounter.toLocaleString('id-ID')}
               </span>
               <span className="text-sm text-slate-300 font-medium">OTS Views Terukur</span>
+            </div>
+            <div className="mt-2">
+              <a
+                href="#media-comparison-section"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition-colors"
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>Bandingkan Performa 2-3 Titik Media</span>
+              </a>
             </div>
           </div>
 
@@ -332,6 +343,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ spots, o
         </div>
 
       </div>
+
+      {/* Head-to-Head 2-3 Media Spots Comparison Table Section */}
+      <MediaComparisonSection 
+        spots={spots} 
+        onSelectSpot={onSelectSpot} 
+      />
 
     </div>
   );

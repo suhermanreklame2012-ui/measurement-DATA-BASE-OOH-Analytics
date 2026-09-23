@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { MediaSpot } from '../types/ooh';
 import { formatIDR, formatCompactNumber, formatCompactIDR } from '../utils/formatters';
-import { openSpotDirectWhatsApp, openCustomWhatsAppMessage } from '../utils/whatsapp';
+import { openSpotDirectWhatsApp, openCustomWhatsAppMessage, getSpotDeepLink } from '../utils/whatsapp';
 import { calculateCampaignPricing, calculatePotentialRoi } from '../utils/pricing';
 import { TECHNICAL_NOTES } from '../data/spotsData';
 import { SpotQrCodeGenerator } from './SpotQrCodeGenerator';
@@ -60,6 +60,7 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
   onOpenRoiCalculator
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
+  const [linkCopied, setLinkCopied] = useState<boolean>(false);
   const [showQrCode, setShowQrCode] = useState<boolean>(false);
   const [campaignMonths, setCampaignMonths] = useState<number>(1);
   const [bookingStartDate, setBookingStartDate] = useState<string>(
@@ -195,6 +196,32 @@ ${savingsNote}
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCopyShareableLink = async () => {
+    if (!spot) return;
+    const directUrl = getSpotDeepLink(spot.id);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(directUrl);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = directUrl;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setLinkCopied(true);
+      addNotification({
+        title: 'Tautan Titik Tersalin',
+        message: `Tautan langsung untuk "${spot.name}" berhasil disalin ke clipboard.`,
+        type: 'create'
+      });
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch (err) {
+      console.error('Failed to copy shareable link:', err);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
@@ -215,6 +242,31 @@ ${savingsNote}
           </div>
 
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+            {/* Copy Shareable Link (Header Button) */}
+            <button
+              id="btn-copy-shareable-link-header"
+              type="button"
+              onClick={handleCopyShareableLink}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                linkCopied
+                  ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400'
+                  : 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700'
+              }`}
+              title="Salin tautan URL langsung untuk titik ini (Copy Shareable Link)"
+            >
+              {linkCopied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-white" />
+                  <span className="hidden sm:inline">Tautan Tersalin!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Salin Link</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={() => setShowQrCode(!showQrCode)}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
@@ -325,6 +377,50 @@ ${savingsNote}
               </span>
             </div>
           )}
+
+          {/* Direct Shareable Link Card */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+                <Share2 className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <span>Tautan Berbagi Langsung (Shareable Link)</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-semibold">
+                    Direct URL
+                  </span>
+                </div>
+                <div className="text-slate-700 font-mono text-[11px] truncate select-all" title={getSpotDeepLink(spot.id)}>
+                  {getSpotDeepLink(spot.id)}
+                </div>
+              </div>
+            </div>
+
+            <button
+              id="btn-copy-shareable-link-inline"
+              type="button"
+              onClick={handleCopyShareableLink}
+              className={`shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                linkCopied
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-1 ring-emerald-400'
+                  : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300 shadow-2xs'
+              }`}
+              title="Salin tautan langsung ini ke clipboard"
+            >
+              {linkCopied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-white" />
+                  <span>Tautan Tersalin!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Copy Shareable Link</span>
+                </>
+              )}
+            </button>
+          </div>
 
           {/* Quick Metrics Grid */}
           <div className="grid grid-cols-3 gap-3">
@@ -913,6 +1009,31 @@ ${savingsNote}
                 <>
                   <Copy className="w-3.5 h-3.5 text-slate-500" />
                   Salin Rincian
+                </>
+              )}
+            </button>
+
+            {/* Copy Shareable Link Button */}
+            <button
+              id="btn-copy-shareable-link-footer"
+              type="button"
+              onClick={handleCopyShareableLink}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 font-semibold rounded-lg text-xs border transition-colors shadow-2xs cursor-pointer ${
+                linkCopied
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs'
+                  : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200'
+              }`}
+              title="Salin tautan URL langsung untuk titik ini ke clipboard (Copy Shareable Link)"
+            >
+              {linkCopied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Tautan Tersalin!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Copy Shareable Link</span>
                 </>
               )}
             </button>

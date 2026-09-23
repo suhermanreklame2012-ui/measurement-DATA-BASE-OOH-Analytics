@@ -156,3 +156,112 @@ export function openCustomWhatsAppMessage(message: string, phone: string = BUSIN
   window.open(url, '_blank');
 }
 
+/**
+ * Generate a comprehensive, professional performance report for a specific region or filtered spots
+ */
+export function generateRegionalReportWhatsAppMessage(
+  spots: MediaSpot[],
+  regionName?: string
+): string {
+  const totalSpots = spots.length;
+  if (totalSpots === 0) {
+    return `Halo Admin Suherman Reklame, belum ada data titik media yang dipilih untuk wilayah ini.`;
+  }
+
+  // Determine display region
+  let displayRegion = regionName && regionName !== 'All' ? regionName : '';
+  if (!displayRegion) {
+    const uniqueCities = Array.from(new Set(spots.map((s) => s.city).filter(Boolean)));
+    if (uniqueCities.length === 1) {
+      displayRegion = uniqueCities[0];
+    } else if (uniqueCities.length <= 3 && uniqueCities.length > 0) {
+      displayRegion = uniqueCities.join(', ');
+    } else {
+      displayRegion = 'Jawa Barat (Semua Wilayah)';
+    }
+  }
+
+  const availableSpots = spots.filter((s) => s.isAvailable).length;
+  const soldOutSpots = totalSpots - availableSpots;
+  const occupancyRate = Math.round((soldOutSpots / totalSpots) * 100);
+  
+  const doohCount = spots.filter((s) => s.category === 'DOOH_DIGITAL').length;
+  const oohCount = totalSpots - doohCount;
+
+  const totalDailyTraffic = spots.reduce((acc, s) => acc + (s.dailyTraffic || 0), 0);
+  const totalDailyOTS = spots.reduce((acc, s) => acc + (s.dailyImpressions || 0), 0);
+  const totalMonthlyOTS = totalDailyOTS * 30;
+  const avgOts = Math.round(totalDailyOTS / totalSpots);
+
+  const totalMonthlyInventory = spots.reduce((acc, s) => acc + (s.pricing?.oneMonth || 0), 0);
+  const avgMonthlyPrice = Math.round(totalMonthlyInventory / totalSpots);
+
+  // Top 3 highest OTS spots in this region
+  const topSpots = [...spots].sort((a, b) => (b.dailyImpressions || 0) - (a.dailyImpressions || 0)).slice(0, 3);
+  const topSpotsText = topSpots
+    .map((s, i) => {
+      const price = s.pricing?.oneMonth ? formatIDR(s.pricing.oneMonth) : 'Hubungi Sales';
+      const type = s.category === 'DOOH_DIGITAL' ? 'DOOH' : 'OOH';
+      return `${i + 1}. *${s.name}* [${type}]
+   • Lokasi: ${s.roadName ? `${s.roadName}, ` : ''}${s.city}
+   • Impresi: ~${(s.dailyImpressions || 0).toLocaleString('id-ID')} OTS/hari
+   • Tarif: ${price}/bln | Status: ${s.isAvailable ? '✅ Tersedia' : '🔒 Tersewa'}`;
+    })
+    .join('\n\n');
+
+  const now = new Date();
+  const dateFormatted = now.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  return `📊 *RINGKASAN PERFORMA MEDIA OOH/DOOH*
+📍 *Wilayah*: *${displayRegion}*
+📅 *Tanggal Rilis*: ${dateFormatted}
+🏢 *Network*: Suherman Reklame OOH Jawa Barat
+
+━━━━━━━━━━━━━━━━━━━━━
+📈 *METRIK JANGKAUAN & AUDIENS*
+• Total Titik Terpantau: *${totalSpots} Titik*
+  - DOOH Videotron: *${doohCount} Titik*
+  - OOH Statis/Billboard: *${oohCount} Titik*
+• Estimasi Trafik Harian: *${totalDailyTraffic.toLocaleString('id-ID')} kendaraan/hari*
+• Total Paparan Harian (OTS): *${totalDailyOTS.toLocaleString('id-ID')} OTS/hari*
+• Potensi Impresi Bulanan: *${totalMonthlyOTS.toLocaleString('id-ID')} OTS/bulan*
+• Rata-rata OTS per Titik: *${avgOts.toLocaleString('id-ID')} OTS/hari*
+
+━━━━━━━━━━━━━━━━━━━━━
+💼 *METRIK OKUPANSI & PORTOFOLIO*
+• Tingkat Okupansi: *${occupancyRate}%*
+  - Titik Tersewa: *${soldOutSpots} Titik*
+  - Titik Siap Tayang (Available): *${availableSpots} Titik*
+• Total Nilai Portofolio (1 Bln): *${formatIDR(totalMonthlyInventory)}*
+• Rerata Tarif Sewa / Titik: *${formatIDR(avgMonthlyPrice)} / bulan*
+
+━━━━━━━━━━━━━━━━━━━━━
+🏆 *TOP 3 REKOMENDASI TITIK DENGAN OTS TERTINGGI:*
+${topSpotsText}
+
+━━━━━━━━━━━━━━━━━━━━━
+📲 *Informasi Pemesanan & Proposal Media:*
+Website: Sistem Database & Strategic Media Planner OOH Jabar
+Kontak Sales: +${BUSINESS_WA_NUMBER} (Suherman Reklame)`;
+}
+
+/**
+ * Get direct WhatsApp link for regional report
+ */
+export function getRegionalReportWhatsAppUrl(
+  spots: MediaSpot[],
+  regionName?: string,
+  phone: string = BUSINESS_WA_NUMBER,
+  forceWeb: boolean = true
+): string {
+  const message = generateRegionalReportWhatsAppMessage(spots, regionName);
+  const cleanPhone = cleanPhoneNumberForWhatsApp(phone);
+  return (forceWeb || !isMobileDevice())
+    ? `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`
+    : `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+}
+

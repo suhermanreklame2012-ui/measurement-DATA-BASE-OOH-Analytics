@@ -148,55 +148,67 @@ export function markNotificationsAsRead(): void {
   }
 }
 
-// Convert spots into CSV format compatible with Google Sheets & Excel
+// Convert spots into CSV format compatible with Google Sheets & Microsoft Excel for offline reporting
 export function exportSpotsToCSV(spots: MediaSpot[]): string {
   const headers = [
     'NO',
-    'ID',
-    'LOKASI',
-    'KOTA/KABUPATEN',
+    'ID TITIK',
+    'NAMA LOKASI',
+    'NAMA JALAN',
+    'KOTA / KABUPATEN',
     'KECAMATAN',
     'KATEGORI',
     'JENIS MEDIA',
     'UKURAN',
     'LAYOUT',
-    'AVAILABLE',
-    '1 BULAN / SISI',
-    '3 BULAN / SISI',
-    '6 BULAN / SISI',
-    '1 TAHUN',
+    'PENCAHAYAAN',
+    'STATUS KETERSEDIAAN',
+    'TARIF 1 BULAN (IDR)',
+    'TARIF 3 BULAN (IDR)',
+    'TARIF 6 BULAN (IDR)',
+    'TARIF 1 TAHUN (IDR)',
     'JENIS LOKASI',
     'KEPADATAN TRAFFIC',
-    'TRAFFIC HARIAN',
-    'EST. IMPRESI HARIAN',
+    'TRAFFIC HARIAN (KENDARAAN)',
+    'EST. IMPRESI HARIAN (OTS)',
+    'SKOR VISIBILITAS (1-100)',
     'LATITUDE',
-    'LONGITUDE'
+    'LONGITUDE',
+    'GOOGLE MAPS URL',
+    'URL FOTO DOKUMENTASI',
+    'TERAKHIR DIPERBARUI'
   ];
 
   const rows = spots.map((s, idx) => [
     idx + 1,
     `"${s.id}"`,
-    `"${s.name.replace(/"/g, '""')}"`,
-    `"${s.city}"`,
-    `"${s.district}"`,
+    `"${(s.name || '').replace(/"/g, '""')}"`,
+    `"${(s.roadName || '').replace(/"/g, '""')}"`,
+    `"${(s.city || '').replace(/"/g, '""')}"`,
+    `"${(s.district || '').replace(/"/g, '""')}"`,
     `"${s.category === 'DOOH_DIGITAL' ? 'DOOH Digital' : 'OOH Statis'}"`,
-    `"${s.mediaType}"`,
-    `"${s.size}"`,
-    `"${s.layout}"`,
-    `"${s.availability}"`,
-    s.pricing.oneMonth,
-    s.pricing.threeMonths,
-    s.pricing.sixMonths,
-    s.pricing.oneYear,
-    `"${s.locationType}"`,
-    `"${s.trafficDensity}"`,
-    s.dailyTraffic,
-    s.dailyImpressions,
-    s.coordinates.lat,
-    s.coordinates.lng
+    `"${(s.mediaType || '').replace(/"/g, '""')}"`,
+    `"${(s.size || '').replace(/"/g, '""')}"`,
+    `"${(s.layout || '').replace(/"/g, '""')}"`,
+    `"${(s.lighting || '').replace(/"/g, '""')}"`,
+    `"${s.isAvailable ? 'Tersedia' : 'Tersewa'}"`,
+    s.pricing?.oneMonth ?? 0,
+    s.pricing?.threeMonths ?? 0,
+    s.pricing?.sixMonths ?? 0,
+    s.pricing?.oneYear ?? 0,
+    `"${(s.locationType || '').replace(/"/g, '""')}"`,
+    `"${(s.trafficDensity || '').replace(/"/g, '""')}"`,
+    s.dailyTraffic ?? 0,
+    s.dailyImpressions ?? 0,
+    s.visibilityScore ?? 0,
+    s.coordinates?.lat ?? 0,
+    s.coordinates?.lng ?? 0,
+    `"https://maps.google.com/?q=${s.coordinates?.lat},${s.coordinates?.lng}"`,
+    `"${(s.imageUrl || s.imageUrls?.[0] || '').replace(/"/g, '""')}"`,
+    `"${s.updatedAt || new Date().toISOString().split('T')[0]}"`
   ]);
 
-  return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  return [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
 }
 
 // Intelligent CSV Parser that can parse both standard formats and the user's raw pasted CSV

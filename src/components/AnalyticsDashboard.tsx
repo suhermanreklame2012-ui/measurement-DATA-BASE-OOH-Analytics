@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell 
 } from 'recharts';
@@ -17,24 +17,46 @@ import {
   ShieldCheck,
   Scale,
   Sparkles,
-  Calculator
+  Calculator,
+  MessageCircle,
+  Share2,
+  Copy,
+  Check,
+  ExternalLink,
+  X,
+  Send,
+  Phone,
+  FileText,
+  CheckCircle2
 } from 'lucide-react';
 import { MediaComparisonSection } from './MediaComparisonSection';
 import { AiMarketInsightsPanel } from './AiMarketInsightsPanel';
+import { 
+  generateRegionalReportWhatsAppMessage, 
+  getRegionalReportWhatsAppUrl, 
+  BUSINESS_WA_NUMBER 
+} from '../utils/whatsapp';
 
 interface AnalyticsDashboardProps {
   spots: MediaSpot[];
   onSelectSpot: (spot: MediaSpot) => void;
   onNavigateToPlanner?: () => void;
   onNavigateToRoi?: () => void;
+  selectedCity?: string;
 }
 
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ 
   spots, 
   onSelectSpot,
   onNavigateToPlanner,
-  onNavigateToRoi 
+  onNavigateToRoi,
+  selectedCity 
 }) => {
+  // WhatsApp Share Modal state
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+  const [targetPhone, setTargetPhone] = useState<string>(BUSINESS_WA_NUMBER);
+  const [isCopied, setIsCopied] = useState<boolean>(false);
+
   // Live ticking OTS counter
   const [liveImpressionCounter, setLiveImpressionCounter] = useState<number>(() => {
     const totalDaily = spots.reduce((acc, s) => acc + s.dailyImpressions, 0);
@@ -64,6 +86,32 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const totalDailyTraffic = spots.reduce((acc, s) => acc + s.dailyTraffic, 0);
   const totalDailyImpressions = spots.reduce((acc, s) => acc + s.dailyImpressions, 0);
   const totalMonthlyInventory = spots.reduce((acc, s) => acc + s.pricing.oneMonth, 0);
+
+  // Determine active filtered city/region name
+  const activeRegion = useMemo(() => {
+    if (selectedCity && selectedCity !== 'All') return selectedCity;
+    const uniqueCities = Array.from(new Set(spots.map((s) => s.city).filter(Boolean)));
+    if (uniqueCities.length === 1) return uniqueCities[0];
+    if (uniqueCities.length <= 3 && uniqueCities.length > 0) return uniqueCities.join(', ');
+    return 'Jawa Barat (Semua Wilayah)';
+  }, [selectedCity, spots]);
+
+  // Generate WhatsApp report text and direct web link
+  const reportMessage = useMemo(() => {
+    return generateRegionalReportWhatsAppMessage(spots, activeRegion);
+  }, [spots, activeRegion]);
+
+  const whatsappUrl = useMemo(() => {
+    return getRegionalReportWhatsAppUrl(spots, activeRegion, targetPhone);
+  }, [spots, activeRegion, targetPhone]);
+
+  const handleCopyReport = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(reportMessage);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2500);
+    }
+  };
 
   // Hourly Traffic simulation data
   const hourlyData = [
@@ -136,6 +184,22 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               <span className="text-sm text-slate-300 font-medium">OTS Views Terukur</span>
             </div>
             <div className="mt-2 flex items-center gap-2 flex-wrap">
+              {/* WhatsApp Share Regional Report Button */}
+              <button
+                id="btn-share-regional-report"
+                data-testid="btn-share-regional-report"
+                type="button"
+                onClick={() => setIsShareModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                title={`Kirim Ringkasan Laporan Kinerja Wilayah (${activeRegion}) via WhatsApp`}
+              >
+                <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                <span>Share Regional Report</span>
+                <span className="hidden sm:inline-block px-1.5 py-0.2 rounded text-[10px] bg-slate-950/20 text-slate-900 font-bold">
+                  {activeRegion}
+                </span>
+              </button>
+
               <a
                 href="#ai-market-insights-panel"
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-400/40 text-xs font-semibold transition-colors"
@@ -392,6 +456,180 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         spots={spots} 
         onSelectSpot={onSelectSpot} 
       />
+
+      {/* WhatsApp Share Regional Report Modal */}
+      {isShareModalOpen && (
+        <div 
+          id="modal-share-regional-report"
+          data-testid="modal-share-regional-report"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 text-white p-5 flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shrink-0">
+                  <MessageCircle className="w-6 h-6 fill-current text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                    <span>Share Regional Report via WhatsApp</span>
+                  </h3>
+                  <p className="text-xs text-emerald-100 mt-0.5">
+                    Ringkasan performa media OOH & DOOH untuk <strong>{activeRegion}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsShareModalOpen(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                title="Tutup Modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-5 space-y-4 overflow-y-auto">
+              
+              {/* Highlight Metrics Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center">
+                  <span className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider">Cakupan Wilayah</span>
+                  <span className="block font-bold text-slate-900 text-xs sm:text-sm truncate" title={activeRegion}>
+                    {activeRegion}
+                  </span>
+                  <span className="text-[10px] text-slate-400">{totalSpots} Titik Media</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center">
+                  <span className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider">Paparan OTS/Hari</span>
+                  <span className="block font-bold text-emerald-600 text-xs sm:text-sm">
+                    {formatCompactNumber(totalDailyImpressions)}
+                  </span>
+                  <span className="text-[10px] text-slate-400">Total Impresi</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center">
+                  <span className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider">Tingkat Okupansi</span>
+                  <span className="block font-bold text-blue-600 text-xs sm:text-sm">
+                    {occupancyRate}%
+                  </span>
+                  <span className="text-[10px] text-slate-400">{soldOutSpots} dari {totalSpots} Tersewa</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center">
+                  <span className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider">Nilai Portofolio</span>
+                  <span className="block font-bold text-purple-600 text-xs sm:text-sm">
+                    {formatCompactNumber(totalMonthlyInventory)}
+                  </span>
+                  <span className="text-[10px] text-slate-400">Tarif 1 Bln / Sisi</span>
+                </div>
+              </div>
+
+              {/* Recipient Phone Configuration */}
+              <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-3.5 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Nomor WhatsApp Tujuan:</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    Ketik nomor klien / agensi (awali 62 atau 08)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      id="input-whatsapp-target-phone"
+                      type="text"
+                      value={targetPhone}
+                      onChange={(e) => setTargetPhone(e.target.value)}
+                      placeholder="6281234567890 (atau kosongkan untuk memilih chat)"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTargetPhone(BUSINESS_WA_NUMBER)}
+                    className="px-2.5 py-2 text-[11px] font-semibold text-emerald-700 bg-white border border-emerald-300 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                    title="Gunakan Nomor Admin Suherman Reklame"
+                  >
+                    Set Admin (+62878)
+                  </button>
+                </div>
+              </div>
+
+              {/* Message Content Preview */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Pratinjau Format Pesan WhatsApp:</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyReport}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-emerald-700 bg-slate-100 hover:bg-emerald-50 px-2.5 py-1 rounded-md transition-colors cursor-pointer border border-slate-200"
+                  >
+                    {isCopied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700 font-bold">Tersalin ke Clipboard!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Salin Teks</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="bg-slate-900 text-slate-200 p-3.5 rounded-xl border border-slate-800 font-mono text-[11px] leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap select-all">
+                  {reportMessage}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsShareModalOpen(false)}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Batal / Tutup
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleCopyReport}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  {isCopied ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                  <span>{isCopied ? 'Tersalin!' : 'Salin Laporan'}</span>
+                </button>
+
+                <a
+                  id="link-send-whatsapp-regional-report"
+                  data-testid="link-send-whatsapp-regional-report"
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-md hover:shadow-lg cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4 fill-current" />
+                  <span>Kirim via WhatsApp</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

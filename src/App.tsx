@@ -394,6 +394,7 @@ export default function App() {
         availableCities={availableCities}
         totalMatches={filteredSpots.length}
         totalSpots={spots.length}
+        spots={spots}
       />
 
       {/* Main Content Body */}
@@ -438,6 +439,7 @@ export default function App() {
             onSelectSpot={(spot) => setSelectedSpot(spot)}
             onNavigateToPlanner={() => setActiveTab('planner')}
             onNavigateToRoi={() => handleOpenRoi()}
+            selectedCity={filter.city !== 'All' ? filter.city : undefined}
           />
         )}
 
@@ -445,6 +447,8 @@ export default function App() {
         {activeTab === 'table' && (
           <MediaTable
             spots={filteredSpots}
+            filter={filter}
+            onSelectRegion={(reg) => setFilter((prev) => ({ ...prev, city: reg }))}
             onSelectSpot={(spot) => setSelectedSpot(spot)}
             onEditSpot={(spot) => {
               setSpotToEdit(spot);

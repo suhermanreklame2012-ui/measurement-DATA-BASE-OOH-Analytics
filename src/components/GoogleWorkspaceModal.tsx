@@ -29,7 +29,9 @@ import {
   Image as ImageIcon,
   Upload,
   Sparkles,
-  Filter
+  Filter,
+  Copy,
+  ShieldAlert
 } from 'lucide-react';
 import { MediaSpot, ClientContact } from '../types/ooh';
 import { getStoredClients } from '../services/clientService';
@@ -118,6 +120,7 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
   const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState<boolean>(false);
 
   // Sheet preview state
   const [selectedSheetItem, setSelectedSheetItem] = useState<DriveFileItem | null>(null);
@@ -599,11 +602,139 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
           </div>
         </div>
 
-        {/* Error Alert Bar */}
+        {/* Error Alert Bar with Diagnostic Guidance */}
         {errorMessage && (
-          <div className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">{errorMessage}</div>
+          <div className="mx-6 mt-4">
+            {errorMessage.toLowerCase().includes('unauthorized-domain') ? (
+              <div
+                id="diagnostic-unauthorized-domain"
+                data-testid="diagnostic-unauthorized-domain"
+                className="p-4 bg-amber-50/95 border border-amber-300 rounded-xl text-amber-950 shadow-sm animate-in fade-in duration-200"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-amber-100 rounded-lg text-amber-700 shrink-0 mt-0.5">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-2.5 flex-1">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm text-amber-950">
+                          Domain Belum Diizinkan di Firebase (auth/unauthorized-domain)
+                        </h4>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-200/90 text-amber-900 font-bold border border-amber-300">
+                          Action Required
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setErrorMessage(null)}
+                        className="text-amber-600 hover:text-amber-900 p-1 rounded-md"
+                        title="Tutup pesan"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-amber-900 leading-relaxed">
+                      Google OAuth &amp; Firebase Authentication menolak proses login karena domain hosting saat ini:{' '}
+                      <code className="font-mono font-bold text-slate-950 bg-white px-2 py-0.5 rounded border border-amber-300 shadow-2xs">
+                        {typeof window !== 'undefined' ? window.location.hostname : 'measurement-kohl.vercel.app'}
+                      </code>{' '}
+                      belum didaftarkan di daftar <strong>Authorized Domains</strong> project Firebase Anda.
+                    </p>
+
+                    {/* Step-by-Step Instructions */}
+                    <div className="bg-white/90 p-3 rounded-lg border border-amber-200/90 space-y-2 text-xs">
+                      <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                        <span>Langkah Perbaikan (1 Menit):</span>
+                        <span className="text-[10px] text-slate-500 font-normal">Project ID: <strong className="font-mono text-slate-700">sewa-billlboard--1741057119832</strong></span>
+                      </div>
+                      <ol className="list-decimal list-inside space-y-1.5 text-slate-700 text-[11px] leading-relaxed">
+                        <li>
+                          Salin nama domain ini:{' '}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof window !== 'undefined') {
+                                navigator.clipboard.writeText(window.location.hostname);
+                                setCopiedDomain(true);
+                                setTimeout(() => setCopiedDomain(false), 3000);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 ml-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded font-mono font-bold text-[11px] transition-colors cursor-pointer"
+                            title="Klik untuk menyalin nama domain ke clipboard"
+                          >
+                            {copiedDomain ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-emerald-300">Tersalin!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5 text-slate-300" />
+                                <span>Salin: {typeof window !== 'undefined' ? window.location.hostname : 'domain'}</span>
+                              </>
+                            )}
+                          </button>
+                        </li>
+                        <li>
+                          Buka <strong>Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains</strong>.
+                        </li>
+                        <li>
+                          Klik <strong>Add domain</strong>, tempelkan domain yang disalin (tambahkan juga domain Vercel <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">vercel.app</code> dan GitHub Pages jika digunakan misal <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">github.io</code>), lalu klik <strong>Save</strong>.
+                        </li>
+                        <li>
+                          Setelah disimpan di Firebase, kembali ke halaman ini lalu klik tombol <strong>Coba Login Lagi</strong>.
+                        </li>
+                      </ol>
+                    </div>
+
+                    {/* Quick Action Buttons */}
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                      <a
+                        href="https://console.firebase.google.com/project/sewa-billlboard--1741057119832/authentication/settings"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs shadow-xs transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Buka Firebase Console (Authorized Domains)</span>
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={handleSignIn}
+                        disabled={isAuthenticating}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isAuthenticating ? 'animate-spin' : ''}`} />
+                        <span>{isAuthenticating ? 'Menghubungkan...' : 'Coba Login Lagi'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setErrorMessage(null)}
+                        className="text-xs text-slate-500 hover:text-slate-800 px-2 py-1 cursor-pointer"
+                      >
+                        Tutup Pesan
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">{errorMessage}</div>
+                <button
+                  type="button"
+                  onClick={() => setErrorMessage(null)}
+                  className="text-rose-400 hover:text-rose-600 p-0.5"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 

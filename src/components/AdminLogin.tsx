@@ -36,6 +36,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
       
       if (errorCode === 'auth/operation-not-allowed' || errorMessage.includes('operation-not-allowed')) {
         setError('Akses ditolak. Anda BELUM mengaktifkan metode Login "Email/Password" di pengaturan Firebase Console (Build > Authentication > Sign-in method).');
+      } else if (errorCode === 'auth/unauthorized-domain' || errorMessage.includes('unauthorized-domain')) {
+        setError(`Domain ${typeof window !== 'undefined' ? window.location.hostname : 'hosting'} belum didaftarkan di Authorized Domains Firebase Authentication. Tambahkan domain ini di Firebase Console.`);
       } else if (
         errorCode === 'auth/invalid-credential' || 
         errorCode === 'auth/wrong-password' || 

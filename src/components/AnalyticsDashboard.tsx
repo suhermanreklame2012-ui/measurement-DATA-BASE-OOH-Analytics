@@ -27,10 +27,14 @@ import {
   Send,
   Phone,
   FileText,
-  CheckCircle2
+  CheckCircle2,
+  Camera,
+  Loader2
 } from 'lucide-react';
 import { MediaComparisonSection } from './MediaComparisonSection';
 import { AiMarketInsightsPanel } from './AiMarketInsightsPanel';
+import { ChartExportFloatingMenu } from './ChartExportFloatingMenu';
+import { exportChartElementAsPng } from '../utils/chartExport';
 import { 
   generateRegionalReportWhatsAppMessage, 
   getRegionalReportWhatsAppUrl, 
@@ -56,6 +60,23 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [targetPhone, setTargetPhone] = useState<string>(BUSINESS_WA_NUMBER);
   const [isCopied, setIsCopied] = useState<boolean>(false);
+  const [quickExportingCard, setQuickExportingCard] = useState<string | null>(null);
+
+  const handleQuickExportCard = async (elementId: string, filename: string) => {
+    setQuickExportingCard(elementId);
+    try {
+      await exportChartElementAsPng(elementId, filename, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        regionName: activeRegion
+      });
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Gagal mengekspor grafik ke gambar PNG.');
+    } finally {
+      setQuickExportingCard(null);
+    }
+  };
 
   // Live ticking OTS counter
   const [liveImpressionCounter, setLiveImpressionCounter] = useState<number>(() => {
@@ -167,7 +188,11 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       
       {/* Real-Time Impression Ticker Bar */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white p-5 rounded-2xl shadow-lg border border-slate-700/80">
+      <div 
+        id="chart-card-kpi-banner"
+        data-testid="chart-card-kpi-banner"
+        className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white p-5 rounded-2xl shadow-lg border border-slate-700/80"
+      >
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -268,30 +293,50 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         onSelectSpot={onSelectSpot} 
       />
 
-      {/* Primary Analytics Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Hourly Traffic & Commuter Peak Chart (2 Cols) */}
-        <div className="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
-            <div>
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-emerald-600" />
-                Tren Arus Lalu Lintas & Paparan Impresi Harian (24 Jam)
-              </h3>
-              <p className="text-xs text-slate-500">
-                Pola pergerakan komuter Kota Bandung & arteri Jawa Barat (Puncak Pagi 07:00-09:00 & Sore 16:30-19:00)
-              </p>
+      {/* Charts Presentation Suite: Wrap all primary and secondary analytics for full presentation export */}
+      <div id="charts-presentation-suite" data-testid="charts-presentation-suite" className="space-y-6">
+
+        {/* Primary Analytics Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Hourly Traffic & Commuter Peak Chart (2 Cols) */}
+          <div 
+            id="chart-card-hourly-traffic"
+            data-testid="chart-card-hourly-traffic"
+            className="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-xs"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-emerald-600" />
+                  Tren Arus Lalu Lintas & Paparan Impresi Harian (24 Jam)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Pola pergerakan komuter Kota Bandung & arteri Jawa Barat (Puncak Pagi 07:00-09:00 & Sore 16:30-19:00)
+                </p>
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="inline-flex items-center gap-1 text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600" /> Traffic Kendaraan
+                </span>
+                <span className="inline-flex items-center gap-1 text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Impresi OTS
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleQuickExportCard('chart-card-hourly-traffic', `OOH-Jabar-Traffic-24Jam-${activeRegion}`)}
+                  disabled={quickExportingCard !== null}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200 cursor-pointer disabled:opacity-50"
+                  title="Unduh grafik garis ini sebagai gambar PNG (2x HD)"
+                >
+                  {quickExportingCard === 'chart-card-hourly-traffic' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                  ) : (
+                    <Camera className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="inline-flex items-center gap-1 text-slate-600">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-600" /> Traffic Kendaraan
-              </span>
-              <span className="inline-flex items-center gap-1 text-slate-600">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Impresi OTS
-              </span>
-            </div>
-          </div>
 
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -310,16 +355,35 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </div>
         </div>
 
-        {/* Location Type Distribution Pie Chart (1 Col) */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
-          <div>
-            <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5 mb-1">
-              <Building2 className="w-4 h-4 text-blue-600" />
-              Karakteristik Koridor Lokasi
-            </h3>
-            <p className="text-xs text-slate-500 mb-3">
-              Distribusi titik media berdasarkan profil zona geografis
-            </p>
+          {/* Location Type Distribution Pie Chart (1 Col) */}
+          <div 
+            id="chart-card-location-type"
+            data-testid="chart-card-location-type"
+            className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-start justify-between mb-1">
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-blue-600" />
+                  Karakteristik Koridor Lokasi
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => handleQuickExportCard('chart-card-location-type', `OOH-Jabar-Karakteristik-Koridor-${activeRegion}`)}
+                  disabled={quickExportingCard !== null}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200 cursor-pointer shrink-0 disabled:opacity-50"
+                  title="Unduh grafik lingkaran ini sebagai gambar PNG (2x HD)"
+                >
+                  {quickExportingCard === 'chart-card-location-type' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                  ) : (
+                    <Camera className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">
+                Distribusi titik media berdasarkan profil zona geografis
+              </p>
 
             <div className="h-48 w-full flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
@@ -357,18 +421,39 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
       </div>
 
-      {/* Secondary Grid: Format Breakdown & Top 5 Spots */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Impresi & Titik Berdasarkan Format Media */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5 mb-1">
-            <BarChart className="w-4 h-4 text-purple-600" />
-            Performa per Format Media
-          </h3>
-          <p className="text-xs text-slate-500 mb-4">
-            Total titik dan ribuan impresi harian (k OTS)
-          </p>
+        {/* Secondary Grid: Format Breakdown & Top 5 Spots */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Impresi & Titik Berdasarkan Format Media */}
+          <div 
+            id="chart-card-media-format"
+            data-testid="chart-card-media-format"
+            className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs"
+          >
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                  <BarChart className="w-4 h-4 text-purple-600" />
+                  Performa per Format Media
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Total titik dan ribuan impresi harian (k OTS)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleQuickExportCard('chart-card-media-format', `OOH-Jabar-Performa-Format-Media-${activeRegion}`)}
+                disabled={quickExportingCard !== null}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200 cursor-pointer shrink-0 disabled:opacity-50"
+                title="Unduh grafik batang ini sebagai gambar PNG (2x HD)"
+              >
+                {quickExportingCard === 'chart-card-media-format' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                ) : (
+                  <Camera className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
 
           <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -386,22 +471,41 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </div>
         </div>
 
-        {/* Top 5 High-Impact Media Spots Leaderboard (2 Cols) */}
-        <div className="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-amber-500" />
-                Top 5 Titik Impresi Tertinggi (Highest Spatial Reach)
-              </h3>
-              <p className="text-xs text-slate-500">
-                Lokasi dengan paparan traffic dan efisiensi CPM paling maksimal di Jawa Barat
-              </p>
+          {/* Top 5 High-Impact Media Spots Leaderboard (2 Cols) */}
+          <div 
+            id="chart-card-top-spots"
+            data-testid="chart-card-top-spots"
+            className="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-xs"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  Top 5 Titik Impresi Tertinggi (Highest Spatial Reach)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Lokasi dengan paparan traffic dan efisiensi CPM paling maksimal di Jawa Barat
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-amber-50 text-amber-800 font-semibold px-2 py-1 rounded-md border border-amber-200">
+                  Prime Spots
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleQuickExportCard('chart-card-top-spots', `OOH-Jabar-Top-5-Prime-Spots-${activeRegion}`)}
+                  disabled={quickExportingCard !== null}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200 cursor-pointer shrink-0 disabled:opacity-50"
+                  title="Unduh leaderboard ini sebagai gambar PNG (2x HD)"
+                >
+                  {quickExportingCard === 'chart-card-top-spots' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                  ) : (
+                    <Camera className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
             </div>
-            <span className="text-xs bg-amber-50 text-amber-800 font-semibold px-2 py-1 rounded-md border border-amber-200">
-              Prime Spots
-            </span>
-          </div>
 
           <div className="divide-y divide-slate-100">
             {topSpots.map((spot, idx) => {
@@ -449,6 +553,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </div>
         </div>
 
+      </div>
+      {/* End of Charts Presentation Suite */}
       </div>
 
       {/* Head-to-Head 2-3 Media Spots Comparison Table Section */}
@@ -630,6 +736,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Floating Action Menu for Chart PNG Exports */}
+      <ChartExportFloatingMenu activeRegion={activeRegion} />
 
     </div>
   );

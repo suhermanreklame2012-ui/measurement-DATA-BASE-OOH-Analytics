@@ -70,8 +70,12 @@ import {
   Image as ImageIcon,
   Maximize2,
   Download,
-  HardDrive
+  HardDrive,
+  Briefcase
 } from 'lucide-react';
+import { CrmPipelineView } from './CrmPipelineView';
+import { saveCrmLead } from '../services/crmService';
+import { CrmLead } from '../types/crm';
 
 interface AiProposalOutreachModalProps {
   isOpen: boolean;
@@ -79,6 +83,8 @@ interface AiProposalOutreachModalProps {
   selectedSpots: MediaSpot[];
   allSpots: MediaSpot[];
   onUpdateSelectedSpots?: (spots: MediaSpot[]) => void;
+  initialTab?: 'deck' | 'whatsapp' | 'email' | 'contacts' | 'crm';
+  onOpenStandaloneCrm?: () => void;
 }
 
 export const AiProposalOutreachModal: React.FC<AiProposalOutreachModalProps> = ({
@@ -86,7 +92,9 @@ export const AiProposalOutreachModal: React.FC<AiProposalOutreachModalProps> = (
   onClose,
   selectedSpots,
   allSpots,
-  onUpdateSelectedSpots
+  onUpdateSelectedSpots,
+  initialTab,
+  onOpenStandaloneCrm
 }) => {
   // Clients state
   const [clients, setClients] = useState<ClientContact[]>([]);
@@ -112,7 +120,7 @@ export const AiProposalOutreachModal: React.FC<AiProposalOutreachModalProps> = (
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [proposalDraft, setProposalDraft] = useState<ProposalDraft | null>(null);
-  const [activeTab, setActiveTab] = useState<'deck' | 'whatsapp' | 'email' | 'contacts'>('deck');
+  const [activeTab, setActiveTab] = useState<'deck' | 'whatsapp' | 'email' | 'contacts' | 'crm'>(initialTab || 'deck');
 
   // Editable drafts
   const [whatsappContent, setWhatsappContent] = useState<string>('');
@@ -298,9 +306,76 @@ export const AiProposalOutreachModal: React.FC<AiProposalOutreachModalProps> = (
       }
       setProposalDraft(null);
       setSendSuccessMessage(null);
-      setActiveTab('deck');
+      setActiveTab(initialTab || 'deck');
     }
-  }, [isOpen, selectedSpots]);
+  }, [isOpen, selectedSpots, initialTab]);
+
+  // Handle saving current proposal configuration to Pipeline CRM
+  const handleSaveToPipelineCrm = async () => {
+    if (!activeClient) {
+      alert('Silakan pilih klien penerima terlebih dahulu di kolom kiri.');
+      return;
+    }
+    const dealValue = unifiedAnalytics.financial.totalGross;
+    const spotNames = proposalSpots.map((s) => s.name);
+    const locationSummary = proposalSpots.map((s) => s.roadName || s.name).join(', ') || 'Kota Bandung';
+
+    const newLead: CrmLead = {
+      id: `lead-${Date.now()}`,
+      companyName: activeClient.company,
+      contactPerson: activeClient.name,
+      contactRole: activeClient.role || activeClient.category,
+      contactPhone: activeClient.phone,
+      contactEmail: activeClient.email,
+      picName: 'Suherman (Admin)',
+      picEmail: 'suherman.reklame2012@gmail.com',
+      targetSpotIds: proposalSpots.map((s) => s.id),
+      targetSpotNames: spotNames,
+      targetLocationsSummary: locationSummary,
+      dealValue,
+      duration,
+      stage: 'negosiasi',
+      priority: 'hot',
+      nextAction: 'Kirim proposal & diskusikan kepastian jadwal tayang',
+      nextActionDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      notes: customNote || 'Dibuat otomatis dari Generator Penawaran AI OOH Jabar.',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      history: [
+        {
+          id: `hist-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          action: `Proposal disusun untuk ${proposalSpots.length} titik reklame (${formatIDR(dealValue)})`,
+          actor: 'Suherman (Admin)'
+        }
+      ],
+      tasks: [
+        {
+          id: `task-${Date.now()}`,
+          title: `Follow up WhatsApp ke ${activeClient.name} (${activeClient.company})`,
+          dueDate: new Date().toISOString().split('T')[0],
+          dueTime: '11:00',
+          completed: false,
+          type: 'wa',
+          assignedPic: 'Suherman (Admin)',
+          createdAt: new Date().toISOString()
+        }
+      ],
+      documents: [
+        {
+          id: `doc-${Date.now()}`,
+          name: `Proposal_OOH_${activeClient.company.replace(/\s+/g, '_')}.pdf`,
+          type: 'proposal_pdf',
+          date: new Date().toISOString().split('T')[0],
+          size: '1.8 MB'
+        }
+      ]
+    };
+
+    await saveCrmLead(newLead);
+    setActiveTab('crm');
+    setSendSuccessMessage(`Berhasil menyimpan prospek ${activeClient.company} ke Pipeline CRM tahap Negosiasi!`);
+  };
 
   // Unified Traffic, Demographic, and Financial Analytics for the marked spots
   const unifiedAnalytics = useMemo(() => {
@@ -648,16 +723,71 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            {/* View Mode Toggle: Proposal Generator vs Pipeline CRM */}
+            <div className="hidden sm:flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700/80">
+              <button
+                type="button"
+                onClick={() => setActiveTab('deck')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activeTab !== 'crm'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Penawaran &amp; Deck
+              </button>
+              <button
+                type="button"
+                id="crm-pipeline-header-tab"
+                onClick={() => setActiveTab('crm')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'crm'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Pipeline CRM</span>
+              </button>
+            </div>
+
+            {onOpenStandaloneCrm && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenStandaloneCrm();
+                }}
+                className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Buka Layar Penuh Standalone CRM"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Modal Body: Split 2 Columns */}
-        <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-800 text-xs">
+        {/* Modal Body: Either Fullscreen CRM Pipeline or Standard 2-Col Proposal Creator */}
+        {activeTab === 'crm' ? (
+          <div className="flex-1 overflow-y-auto">
+            <CrmPipelineView
+              allSpots={allSpots}
+              isStandalone={false}
+              onOpenProposalWithLead={() => {
+                setActiveTab('deck');
+              }}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-800 text-xs">
           
           {/* Left Column: Configuration & Spot Selection (5 cols) */}
           <div className="lg:col-span-5 p-5 space-y-4.5 overflow-y-auto">
@@ -1150,6 +1280,19 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                     <Users className="w-3.5 h-3.5" />
                     Buku Kontak Klien
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('crm')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      activeTab === 'crm'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
+                    Pipeline CRM
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1198,6 +1341,17 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleSaveToPipelineCrm}
+                        disabled={proposalSpots.length === 0 || !activeClient}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow cursor-pointer disabled:opacity-40"
+                        title="Simpan proposal ini ke alur Pipeline CRM"
+                      >
+                        <Briefcase className="w-3.5 h-3.5" />
+                        <span>+ Simpan ke CRM</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={handleDownloadPDF}
@@ -2195,6 +2349,7 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
           </div>
 
         </div>
+        )}
 
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">

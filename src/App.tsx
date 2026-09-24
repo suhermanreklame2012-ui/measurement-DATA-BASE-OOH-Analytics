@@ -37,6 +37,7 @@ import { AdminLogin } from './components/AdminLogin';
 import { DEFAULT_MIN_BOUND, DEFAULT_MAX_BOUND } from './components/PriceRangeFilter';
 import { CheckCircle2, RefreshCw, X, AlertCircle } from 'lucide-react';
 import { listenAuthState } from './services/emailAuthService';
+import { CrmPipelineView } from './components/CrmPipelineView';
 
 const SUPERADMIN_EMAIL = 'suherman.reklame2012@gmail.com';
 
@@ -58,6 +59,7 @@ export default function App() {
   const [spotToEdit, setSpotToEdit] = useState<MediaSpot | null>(null);
   const [isAiSecurityModalOpen, setIsAiSecurityModalOpen] = useState<boolean>(false);
   const [isAiProposalModalOpen, setIsAiProposalModalOpen] = useState<boolean>(false);
+  const [isCrmStandaloneOpen, setIsCrmStandaloneOpen] = useState<boolean>(false);
   const [proposalSpots, setProposalSpots] = useState<MediaSpot[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<MediaSpot | null>(null);
   const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState<boolean>(false);
@@ -371,6 +373,7 @@ export default function App() {
         onOpenReport={() => setIsReportModalOpen(true)}
         onOpenAiSecurity={() => setIsAiSecurityModalOpen(true)}
         onOpenAiProposal={() => handleOpenAiProposal()}
+        onOpenCrm={() => setIsCrmStandaloneOpen(true)}
         onToggleNotif={() => setIsNotifDropdownOpen(!isNotifDropdownOpen)}
         isNotifOpen={isNotifDropdownOpen}
         activeTab={activeTab}
@@ -577,7 +580,21 @@ export default function App() {
         selectedSpots={proposalSpots}
         allSpots={spots}
         onUpdateSelectedSpots={(updated) => setProposalSpots(updated)}
+        onOpenStandaloneCrm={() => setIsCrmStandaloneOpen(true)}
       />
+
+      {/* Standalone CRM Pipeline View ("03 Bisa dipakai sendiri") */}
+      {isCrmStandaloneOpen && (
+        <CrmPipelineView
+          allSpots={spots}
+          isStandalone={true}
+          onCloseStandalone={() => setIsCrmStandaloneOpen(false)}
+          onOpenProposalWithLead={() => {
+            setIsCrmStandaloneOpen(false);
+            handleOpenAiProposal();
+          }}
+        />
+      )}
 
       {/* Floating Automated Notification Toast */}
       {activeToast && (

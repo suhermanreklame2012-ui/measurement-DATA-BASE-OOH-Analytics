@@ -126,8 +126,9 @@ export const ChartExportFloatingMenu: React.FC<ChartExportFloatingMenuProps> = (
       setToastMessage(`Grafik "${item.title}" berhasil diunduh sebagai PNG!`);
       setTimeout(() => setToastMessage(null), 4000);
     } catch (err: any) {
-      console.error(err);
-      alert(err.message || 'Gagal mengekspor grafik ke PNG. Pastikan elemen terlihat di layar.');
+      console.error('Export error:', err);
+      setToastMessage('Gagal mengekspor grafik ke PNG. Pastikan elemen terlihat di layar.');
+      setTimeout(() => setToastMessage(null), 4000);
     } finally {
       setExportingId(null);
     }

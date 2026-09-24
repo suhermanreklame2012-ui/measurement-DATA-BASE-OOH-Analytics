@@ -61,6 +61,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [targetPhone, setTargetPhone] = useState<string>(BUSINESS_WA_NUMBER);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [quickExportingCard, setQuickExportingCard] = useState<string | null>(null);
+  const [exportToast, setExportToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const handleQuickExportCard = async (elementId: string, filename: string) => {
     setQuickExportingCard(elementId);
@@ -70,9 +71,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         backgroundColor: '#ffffff',
         regionName: activeRegion
       });
+      setExportToast({ type: 'success', message: 'Grafik berhasil diunduh sebagai gambar PNG!' });
+      setTimeout(() => setExportToast(null), 4000);
     } catch (err: any) {
-      console.error(err);
-      alert(err.message || 'Gagal mengekspor grafik ke gambar PNG.');
+      console.error('Quick export error:', err);
+      setExportToast({ type: 'error', message: 'Gagal mengekspor grafik. Silakan coba kembali.' });
+      setTimeout(() => setExportToast(null), 4000);
     } finally {
       setQuickExportingCard(null);
     }
@@ -185,8 +189,31 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const topSpots = [...spots].sort((a, b) => b.dailyImpressions - a.dailyImpressions).slice(0, 5);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 relative">
       
+      {/* Toast Notification for Chart Export */}
+      {exportToast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 text-xs font-semibold animate-in fade-in slide-in-from-bottom-4 duration-200 ${
+          exportToast.type === 'success'
+            ? 'bg-slate-900 text-emerald-300 border-emerald-500/50'
+            : 'bg-slate-900 text-rose-300 border-rose-500/50'
+        }`}>
+          {exportToast.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <X className="w-4 h-4 text-rose-400 shrink-0" />
+          )}
+          <span>{exportToast.message}</span>
+          <button 
+            type="button" 
+            onClick={() => setExportToast(null)} 
+            className="ml-2 text-slate-400 hover:text-white"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Real-Time Impression Ticker Bar */}
       <div 
         id="chart-card-kpi-banner"

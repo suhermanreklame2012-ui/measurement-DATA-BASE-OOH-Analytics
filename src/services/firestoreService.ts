@@ -125,6 +125,23 @@ export async function deleteSpotFromFirestore(spotId: string): Promise<void> {
 }
 
 /**
+ * Bulk delete multiple spots from Firestore using batch write.
+ */
+export async function bulkDeleteSpotsFromFirestore(spotIds: string[]): Promise<void> {
+  if (!spotIds || spotIds.length === 0) return;
+  try {
+    const batch = writeBatch(db);
+    spotIds.forEach((id) => {
+      const docRef = doc(db, SPOTS_COLLECTION, id);
+      batch.delete(docRef);
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, SPOTS_COLLECTION);
+  }
+}
+
+/**
  * Seed initial spots to Firestore if the collection is empty or missing spots.
  */
 export async function seedInitialSpotsIfEmpty(initialSpots: MediaSpot[]): Promise<boolean> {

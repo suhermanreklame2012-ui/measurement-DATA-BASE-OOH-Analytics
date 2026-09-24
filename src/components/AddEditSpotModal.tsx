@@ -28,13 +28,15 @@ interface AddEditSpotModalProps {
   onClose: () => void;
   onSave: (spot: MediaSpot) => void;
   existingSpot?: MediaSpot | null;
+  onDelete?: (spotId: string) => void;
 }
 
 export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  existingSpot
+  existingSpot,
+  onDelete
 }) => {
   const [name, setName] = useState<string>(existingSpot?.name || '');
   const [city, setCity] = useState<string>(existingSpot?.city || 'Kota Bandung');
@@ -611,29 +613,48 @@ export const AddEditSpotModal: React.FC<AddEditSpotModalProps> = ({
           </div>
 
           {/* Modal Actions */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isVerifying}
-              className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={isVerifying}
-              className="inline-flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs disabled:opacity-50"
-            >
-              {isVerifying ? (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                  <span>Memverifikasi AI...</span>
-                </>
-              ) : (
-                <span>Simpan Titik Media</span>
-              )}
-            </button>
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+            {existingSpot && onDelete ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Apakah Anda yakin ingin menghapus titik "${existingSpot.name}" (${existingSpot.id}) dari database?`)) {
+                    onDelete(existingSpot.id);
+                  }
+                }}
+                disabled={isVerifying}
+                className="inline-flex items-center gap-1.5 px-3 py-2 border border-rose-200 hover:border-rose-400 bg-rose-50/60 hover:bg-rose-100 text-rose-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+                title="Hapus titik media ini dari database"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Hapus Titik</span>
+              </button>
+            ) : <div />}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isVerifying}
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={isVerifying}
+                className="inline-flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                {isVerifying ? (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                    <span>Memverifikasi AI...</span>
+                  </>
+                ) : (
+                  <span>Simpan Titik Media</span>
+                )}
+              </button>
+            </div>
           </div>
 
         </form>

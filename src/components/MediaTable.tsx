@@ -44,13 +44,19 @@ import {
   MapPin,
   Car,
   Scale,
-  GitCompare
+  GitCompare,
+  Trash2,
+  AlertTriangle,
+  Plus
 } from 'lucide-react';
 
 interface MediaTableProps {
   spots: MediaSpot[];
   onSelectSpot: (spot: MediaSpot) => void;
   onEditSpot?: (spot: MediaSpot) => void;
+  onDeleteSpot?: (spotId: string) => void;
+  onBulkDeleteSpots?: (spotIds: string[]) => void;
+  onAddSpot?: () => void;
   onToggleAvailability: (spotId: string) => void;
   onBulkUpdateAvailability: (spotIds: string[], isAvailable: boolean) => void;
   onOpenAiProposal?: (spots: MediaSpot[]) => void;
@@ -67,6 +73,9 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   spots,
   onSelectSpot,
   onEditSpot,
+  onDeleteSpot,
+  onBulkDeleteSpots,
+  onAddSpot,
   onToggleAvailability,
   onBulkUpdateAvailability,
   onOpenAiProposal,
@@ -84,6 +93,10 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [comparedSpotIds, setComparedSpotIds] = useState<string[]>([]);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState<boolean>(false);
+
+  // Deletion Confirmation States
+  const [spotToDelete, setSpotToDelete] = useState<MediaSpot | null>(null);
+  const [isConfirmBulkDeleteOpen, setIsConfirmBulkDeleteOpen] = useState<boolean>(false);
 
   const handleOpenComparisonModal = () => {
     if (selectedIds.size >= 2) {
@@ -566,12 +579,26 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               type="button"
               onClick={handleExportToExcel}
               disabled={spots.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-lg border border-emerald-500 shadow-2xs text-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-semibold rounded-lg border border-slate-700 shadow-2xs text-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
               title="Unduh seluruh data titik media hasil filter saat ini ke berkas CSV Excel untuk pelaporan offline"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
               <span>Export to Excel ({spots.length})</span>
             </button>
+
+            {/* Add New Spot Action */}
+            {onAddSpot && (
+              <button
+                id="btn-add-new-spot-table"
+                type="button"
+                onClick={onAddSpot}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold rounded-lg border border-emerald-500 shadow-sm text-xs transition-all cursor-pointer"
+                title="Tambah Titik Media Baru ke Database"
+              >
+                <Plus className="w-3.5 h-3.5 text-white" />
+                <span>+ Tambah Titik</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -684,6 +711,20 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Export Terpilih to Excel ({selectedIds.size})</span>
               </button>
+
+              {/* Bulk Delete Selected Spots */}
+              {onBulkDeleteSpots && (
+                <button
+                  id="btn-bulk-delete-spots"
+                  type="button"
+                  onClick={() => setIsConfirmBulkDeleteOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs transition-colors shadow-xs border border-rose-400/50 active:scale-95 cursor-pointer"
+                  title={`Hapus ${selectedIds.size} titik media terpilih dari database`}
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-white" />
+                  <span>Hapus Terpilih ({selectedIds.size})</span>
+                </button>
+              )}
 
               {/* AI Proposal Outreach for selected */}
               {onOpenAiProposal && (
@@ -999,10 +1040,20 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                           {onEditSpot && (
                             <button
                               onClick={() => onEditSpot(spot)}
-                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                              title="Edit Titik Media"
+                              className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                              title="Edit Data Titik Media"
                             >
                               <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                          {onDeleteSpot && (
+                            <button
+                              type="button"
+                              onClick={() => setSpotToDelete(spot)}
+                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                              title="Hapus Titik Media dari Database"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           )}
                           <button
@@ -1314,10 +1365,21 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onEditSpot(spot)}
-                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                                 title="Edit Data Titik"
                               >
                                 <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {onDeleteSpot && (
+                              <button
+                                type="button"
+                                onClick={() => setSpotToDelete(spot)}
+                                className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Hapus Titik Media dari Database"
+                              >
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             )}
                           </div>
@@ -1729,6 +1791,167 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                   onOpenRoiCalculator?.(spot);
                 }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal: Delete Single Spot */}
+      {spotToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 bg-gradient-to-r from-rose-900 to-rose-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-rose-500/30 border border-rose-400/40 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4 text-rose-300" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight">Hapus Titik Media</h3>
+                  <p className="text-[11px] text-rose-200">Konfirmasi penghapusan dari database inventaris</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSpotToDelete(null)}
+                className="p-1 text-rose-300 hover:text-white rounded-md hover:bg-white/10 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-slate-600">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-relaxed">
+                  Apakah Anda yakin ingin menghapus titik media ini dari database? Tindakan ini akan menghapus data titik dari penyimpanan lokal dan Cloud Firestore.
+                </div>
+              </div>
+
+              {/* Spot Details Summary */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">
+                    {spotToDelete.id}
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    {spotToDelete.city}
+                  </span>
+                </div>
+                <div className="font-bold text-slate-900 text-sm">
+                  {spotToDelete.name}
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  {spotToDelete.roadName || spotToDelete.district}
+                </div>
+                <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-200 flex items-center justify-between">
+                  <span>{spotToDelete.mediaType} ({spotToDelete.size})</span>
+                  <span className="font-bold text-slate-900">{formatIDR(spotToDelete.pricing.oneMonth)}/bln</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSpotToDelete(null)}
+                className="px-4 py-2 border border-slate-300 hover:bg-white text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteSpot && spotToDelete) {
+                    onDeleteSpot(spotToDelete.id);
+                    setSpotToDelete(null);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Ya, Hapus Titik</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal: Delete Bulk Spots */}
+      {isConfirmBulkDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 bg-gradient-to-r from-rose-900 to-rose-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-rose-500/30 border border-rose-400/40 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4 text-rose-300" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight">Hapus {selectedIds.size} Titik Terpilih</h3>
+                  <p className="text-[11px] text-rose-200">Konfirmasi penghapusan massal dari database inventaris</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConfirmBulkDeleteOpen(false)}
+                className="p-1 text-rose-300 hover:text-white rounded-md hover:bg-white/10 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-slate-600">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-relaxed">
+                  Perhatian: Anda akan menghapus <strong>{selectedIds.size} titik media</strong> sekaligus dari inventaris. Tindakan ini akan menghapus data dari memori lokal dan sinkronisasi Cloud Firestore.
+                </div>
+              </div>
+
+              {/* List of selected spots preview */}
+              <div className="space-y-1">
+                <div className="text-[11px] font-semibold text-slate-700">Daftar Titik yang akan Dihapus:</div>
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 border border-slate-200 rounded-xl p-2 bg-slate-50">
+                  {selectedSpotsList.map((s, idx) => (
+                    <div key={s.id} className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-800 text-[11px] truncate">
+                          {idx + 1}. {s.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400 truncate">
+                          {s.city} • {s.size} • {s.id}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-700 shrink-0">
+                        {formatIDR(s.pricing.oneMonth)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsConfirmBulkDeleteOpen(false)}
+                className="px-4 py-2 border border-slate-300 hover:bg-white text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onBulkDeleteSpots && selectedIds.size > 0) {
+                    onBulkDeleteSpots(Array.from(selectedIds));
+                    clearSelection();
+                    setIsConfirmBulkDeleteOpen(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Ya, Hapus {selectedIds.size} Titik</span>
+              </button>
             </div>
           </div>
         </div>

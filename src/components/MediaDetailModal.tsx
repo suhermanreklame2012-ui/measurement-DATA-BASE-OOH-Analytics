@@ -27,7 +27,9 @@ import {
   Percent,
   Sliders,
   Calculator,
-  CalendarCheck
+  CalendarCheck,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { MediaSpot } from '../types/ooh';
 import { formatIDR, formatCompactNumber, formatCompactIDR } from '../utils/formatters';
@@ -48,6 +50,7 @@ interface MediaDetailModalProps {
   onToggleAvailability: (spotId: string) => void;
   onOpenAiProposal?: (spot: MediaSpot) => void;
   onEditSpot?: (spot: MediaSpot) => void;
+  onDeleteSpot?: (spotId: string) => void;
   onOpenRoiCalculator?: (spot: MediaSpot) => void;
 }
 
@@ -57,6 +60,7 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
   onToggleAvailability,
   onOpenAiProposal,
   onEditSpot,
+  onDeleteSpot,
   onOpenRoiCalculator
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
@@ -242,6 +246,40 @@ ${savingsNote}
           </div>
 
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+            {/* Edit Spot Action */}
+            {onEditSpot && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEditSpot(spot);
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 transition-all cursor-pointer"
+                title="Edit data titik media ini"
+              >
+                <Pencil className="w-3.5 h-3.5 text-blue-400" />
+                <span className="hidden sm:inline">Edit</span>
+              </button>
+            )}
+
+            {/* Delete Spot Action */}
+            {onDeleteSpot && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Apakah Anda yakin ingin menghapus titik media "${spot.name}" (${spot.id}) dari database?`)) {
+                    onDeleteSpot(spot.id);
+                    onClose();
+                  }
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-slate-800 hover:bg-rose-950 text-rose-400 border border-slate-700 hover:border-rose-700 transition-all cursor-pointer"
+                title="Hapus titik media ini dari database"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Hapus</span>
+              </button>
+            )}
+
             {/* Copy Shareable Link (Header Button) */}
             <button
               id="btn-copy-shareable-link-header"

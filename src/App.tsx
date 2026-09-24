@@ -6,7 +6,9 @@ import {
   getStoredNotifications, 
   addNotification, 
   markNotificationsAsRead,
-  resetToInitialSpots
+  resetToInitialSpots,
+  deleteSpotFromStorage,
+  bulkDeleteSpotsFromStorage
 } from './services/storageService';
 import { INITIAL_SPOTS } from './data/spotsData';
 import { testFirestoreConnection } from './services/firebase';
@@ -16,7 +18,9 @@ import {
   updateSpotAvailabilityInFirestore, 
   bulkUpdateAvailabilityInFirestore, 
   seedInitialSpotsIfEmpty,
-  subscribeToNotifications
+  subscribeToNotifications,
+  deleteSpotFromFirestore,
+  bulkDeleteSpotsFromFirestore
 } from './services/firestoreService';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
@@ -253,6 +257,57 @@ export default function App() {
     });
   };
 
+  // Delete single spot from database
+  const handleDeleteSpot = (spotId: string) => {
+    const target = spots.find((s) => s.id === spotId);
+    const targetName = target ? target.name : spotId;
+
+    const updated = spots.filter((s) => s.id !== spotId);
+    handleUpdateSpots(updated);
+    deleteSpotFromStorage(spotId);
+
+    // Persist deletion to Cloud Firestore
+    deleteSpotFromFirestore(spotId).catch((err) => {
+      console.warn('Firestore delete spot fallback:', err);
+    });
+
+    if (selectedSpot && selectedSpot.id === spotId) {
+      setSelectedSpot(null);
+    }
+
+    addNotification({
+      title: 'Titik Media Dihapus',
+      message: `Titik media "${targetName}" (${spotId}) berhasil dihapus dari database.`,
+      type: 'system'
+    });
+  };
+
+  // Bulk delete spots from database
+  const handleBulkDeleteSpots = (spotIds: string[]) => {
+    if (!spotIds || spotIds.length === 0) return;
+    const idsSet = new Set(spotIds);
+
+    const updated = spots.filter((s) => !idsSet.has(s.id));
+    handleUpdateSpots(updated);
+    bulkDeleteSpotsFromStorage(spotIds);
+
+    // Persist bulk deletion to Cloud Firestore
+    bulkDeleteSpotsFromFirestore(spotIds).catch((err) => {
+      console.warn('Firestore bulk delete spots fallback:', err);
+    });
+
+    if (selectedSpot && idsSet.has(selectedSpot.id)) {
+      setSelectedSpot(null);
+    }
+
+    addNotification({
+      title: 'Penghapusan Massal Berhasil',
+      message: `Sebanyak ${spotIds.length} titik media berhasil dihapus dari database inventaris.`,
+      type: 'system',
+      itemCount: spotIds.length
+    });
+  };
+
   // Extract all distinct cities in dataset
   const availableCities = useMemo(() => {
     const set = new Set<string>();
@@ -462,6 +517,12 @@ export default function App() {
               setSpotToEdit(spot);
               setIsAddSpotModalOpen(true);
             }}
+            onDeleteSpot={handleDeleteSpot}
+            onBulkDeleteSpots={handleBulkDeleteSpots}
+            onAddSpot={() => {
+              setSpotToEdit(null);
+              setIsAddSpotModalOpen(true);
+            }}
             onToggleAvailability={handleToggleAvailability}
             onBulkUpdateAvailability={handleBulkUpdateAvailability}
             onOpenAiProposal={(chosenSpots) => handleOpenAiProposal(chosenSpots)}
@@ -568,6 +629,7 @@ export default function App() {
           setSpotToEdit(chosenSpot);
           setIsAddSpotModalOpen(true);
         }}
+        onDeleteSpot={handleDeleteSpot}
       />
 
       <AddEditSpotModal
@@ -579,6 +641,11 @@ export default function App() {
         }}
         onSave={handleSaveSpot}
         existingSpot={spotToEdit}
+        onDelete={(spotId) => {
+          handleDeleteSpot(spotId);
+          setIsAddSpotModalOpen(false);
+          setSpotToEdit(null);
+        }}
       />
 
       <AiSecurityModal

@@ -83,6 +83,14 @@ export function deleteSpotFromStorage(spotId: string): MediaSpot[] {
   return filtered;
 }
 
+export function bulkDeleteSpotsFromStorage(spotIds: string[]): MediaSpot[] {
+  const current = getStoredSpots();
+  const idsSet = new Set(spotIds);
+  const filtered = current.filter(s => !idsSet.has(s.id));
+  saveStoredSpots(filtered);
+  return filtered;
+}
+
 export function resetToInitialSpots(): MediaSpot[] {
   saveStoredSpots(INITIAL_SPOTS);
   addNotification({

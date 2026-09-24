@@ -29,7 +29,8 @@ import {
   Calculator,
   CalendarCheck,
   Pencil,
-  Trash2
+  Trash2,
+  Smartphone
 } from 'lucide-react';
 import { MediaSpot } from '../types/ooh';
 import { formatIDR, formatCompactNumber, formatCompactIDR } from '../utils/formatters';
@@ -305,17 +306,21 @@ ${savingsNote}
               )}
             </button>
 
+            {/* Scan Spot QR Code on Mobile Device */}
             <button
+              id="btn-toggle-mobile-qr-header"
+              data-testid="btn-toggle-mobile-qr-header"
+              type="button"
               onClick={() => setShowQrCode(!showQrCode)}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 showQrCode
                   ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400'
                   : 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700'
               }`}
-              title="Tampilkan QR Code WhatsApp Deep Link untuk di-scan klien di lapangan"
+              title="Tampilkan QR Code unik untuk dipindai calon klien di ponsel pintar mereka"
             >
-              <QrCode className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">{showQrCode ? 'Tutup QR' : 'QR Scan'}</span>
+              <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">{showQrCode ? 'Tutup QR' : '📱 Buka di HP (QR)'}</span>
             </button>
 
             <button
@@ -383,35 +388,38 @@ ${savingsNote}
             onOpenEdit={onEditSpot ? () => onEditSpot(spot) : undefined}
           />
 
-          {/* Field Agent QR Code Generator Section (WhatsApp Deep Link) */}
+          {/* Field Agent QR Code Generator Section (Unique Spot Mobile Pass) */}
           {showQrCode ? (
             <div className="animate-in fade-in slide-in-from-top-2 duration-150">
               <SpotQrCodeGenerator spot={spot} onClose={() => setShowQrCode(false)} />
             </div>
           ) : (
             <div 
+              id="card-open-mobile-qr-trigger"
+              data-testid="card-open-mobile-qr-trigger"
               onClick={() => setShowQrCode(true)}
-              className="p-3 bg-gradient-to-r from-emerald-950/10 via-slate-50 to-emerald-950/5 border border-emerald-200 hover:border-emerald-400 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer transition-all group shadow-2xs hover:shadow-xs"
-              title="Buka generator QR Code untuk dibagikan ke smartphone klien"
+              className="p-3.5 bg-gradient-to-r from-emerald-950/15 via-slate-900/10 to-indigo-950/15 border border-emerald-300 hover:border-emerald-500 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer transition-all group shadow-2xs hover:shadow-xs"
+              title="Buat QR Code unik untuk dipindai calon klien agar langsung membuka detail media ini di smartphone mereka"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-600/15 border border-emerald-500/30 flex items-center justify-center text-emerald-700 group-hover:scale-105 transition-transform shrink-0">
-                  <QrCode className="w-4 h-4 text-emerald-600" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-indigo-600 text-white flex items-center justify-center group-hover:scale-105 transition-transform shrink-0 shadow-sm">
+                  <Smartphone className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>Integrasi WhatsApp Web & QR Code</span>
-                    <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[10px] font-semibold">
-                      web.whatsapp.com
+                  <div className="font-bold text-slate-900 flex items-center gap-2">
+                    <span>📱 Pindai QR Code di Smartphone Calon Klien</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300">
+                      Mobile Media Pass
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-500">
-                    Buka langsung di WhatsApp Web komputer Anda atau pindai QR Code dengan smartphone klien (0878-2224-8975 a.n. Suherman).
+                  <div className="text-[11px] text-slate-600 mt-0.5">
+                    Buat QR Code unik titik <strong className="text-slate-900">{spot.name}</strong>. Calon klien cukup mengarahkan kamera ponsel untuk langsung membaca spesifikasi, estimasi impresi harian, dan tarif resmi tanpa perlu instal aplikasi.
                   </div>
                 </div>
               </div>
-              <span className="text-[11px] font-semibold text-emerald-700 group-hover:text-emerald-800 flex items-center gap-0.5 shrink-0">
-                Buka QR & Web →
+              <span className="text-xs font-bold text-emerald-700 group-hover:text-emerald-800 flex items-center gap-1 shrink-0 bg-white px-3 py-1.5 rounded-lg border border-emerald-200 group-hover:border-emerald-300 shadow-2xs">
+                <span>Tampilkan QR</span>
+                <span className="group-hover:translate-x-0.5 transition-transform">→</span>
               </span>
             </div>
           )}
@@ -1076,18 +1084,21 @@ ${savingsNote}
               )}
             </button>
 
-            {/* Field Agent QR Code Button */}
+            {/* Unique Spot Mobile QR Code Button in Footer */}
             <button
+              id="btn-toggle-mobile-qr-footer"
+              data-testid="btn-toggle-mobile-qr-footer"
+              type="button"
               onClick={() => setShowQrCode(!showQrCode)}
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 font-semibold rounded-lg text-xs transition-all cursor-pointer ${
                 showQrCode
-                  ? 'bg-slate-900 text-emerald-400 border border-slate-700 shadow-sm'
+                  ? 'bg-slate-900 text-emerald-400 border border-slate-700 shadow-sm ring-1 ring-emerald-500/40'
                   : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs'
               }`}
-              title="Tampilkan QR Code WhatsApp Deep Link untuk di-scan klien di lapangan"
+              title="Tampilkan QR Code unik untuk dipindai calon klien di ponsel pintar mereka"
             >
-              <QrCode className="w-4 h-4 text-emerald-600" />
-              <span>{showQrCode ? 'Tutup QR' : 'QR Code'}</span>
+              <Smartphone className="w-4 h-4 text-emerald-600" />
+              <span>{showQrCode ? 'Tutup QR' : '📱 Scan QR di HP Klien'}</span>
             </button>
           </div>
 

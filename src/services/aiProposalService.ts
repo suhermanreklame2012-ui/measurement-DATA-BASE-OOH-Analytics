@@ -116,7 +116,7 @@ Apakah ${client.name} berkenan untuk peninjauan titik lokasi bersama tim atau pe
 Hormat kami,
 *Suherman Reklame*
 OOH & DOOH Media Specialist Jawa Barat
-WhatsApp: 0812-3456-7890 / 0878-2224-8975
+WhatsApp: 0878-2224-8975 (a.n. Suherman)
 Email: suherman.reklame2012@gmail.com`;
 
   // Email Subject
@@ -162,7 +162,7 @@ Hormat kami,
 
 Suherman Reklame
 PT Media Reklame Jawa Barat Mandiri
-WhatsApp: 0812-3456-7890 / 0878-2224-8975
+WhatsApp: 0878-2224-8975 (a.n. Suherman)
 Email: suherman.reklame2012@gmail.com`;
 
   return {

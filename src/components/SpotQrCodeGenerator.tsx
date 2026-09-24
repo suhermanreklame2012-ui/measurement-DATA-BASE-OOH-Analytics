@@ -202,7 +202,7 @@ export const SpotQrCodeGenerator: React.FC<SpotQrCodeGeneratorProps> = ({
           {/* Quick badge on QR */}
           <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[10px] font-mono text-[#25D366] shadow-md flex items-center gap-1.5 whitespace-nowrap">
             <span className="w-2 h-2 rounded-full bg-[#25D366] animate-pulse" />
-            <span>WA Bisnis: +62 87822248975</span>
+            <span>WA: 0878-2224-8975 (Suherman)</span>
           </div>
         </div>
 
@@ -242,7 +242,7 @@ export const SpotQrCodeGenerator: React.FC<SpotQrCodeGeneratorProps> = ({
                 )}
               </li>
               <li>
-                Ketuk tautan untuk membuka obrolan ke nomor <span className="font-mono text-emerald-300 font-semibold">+62 87822248975</span>.
+                Ketuk tautan untuk membuka obrolan ke nomor <span className="font-mono text-emerald-300 font-semibold">0878-2224-8975 (a.n. Suherman)</span>.
               </li>
               <li>
                 Pesan telah terisi otomatis dengan spesifikasi, tarif, dan foto media reklame ini. Cukup tekan tombol kirim!

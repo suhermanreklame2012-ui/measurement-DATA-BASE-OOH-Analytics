@@ -246,7 +246,7 @@ ${topSpotsText}
 ━━━━━━━━━━━━━━━━━━━━━
 📲 *Informasi Pemesanan & Proposal Media:*
 Website: Sistem Database & Strategic Media Planner OOH Jabar
-Kontak Sales: +${BUSINESS_WA_NUMBER} (Suherman Reklame)`;
+Kontak Sales: 0878-2224-8975 atas nama Suherman (Suherman Reklame)`;
 }
 
 /**

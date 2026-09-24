@@ -310,7 +310,7 @@ export async function generateExecutiveProposalPDF(
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(148, 163, 184);
   doc.text('Halaman 1 • Dokumen Resmi Executive Media Proposal — Suherman Reklame', margin, pageHeight - 6);
-  doc.text(`Hotline: 0878-2224-8975 / 0812-2002-390`, pageWidth - margin - 55, pageHeight - 6);
+  doc.text('Hotline: 0878-2224-8975 (Suherman)', pageWidth - margin - 55, pageHeight - 6);
 
   // ==========================================
   // SECTION 4: LAMPIRAN DOKUMENTASI FOTO LOKASI
@@ -355,7 +355,7 @@ export async function generateExecutiveProposalPDF(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(148, 163, 184);
     doc.text(`Halaman ${pageNumber} • Lampiran Visual & Foto Lokasi — Suherman Reklame Jawa Barat`, margin, pageHeight - 6);
-    doc.text('Hotline: 0878-2224-8975 | suherman.reklame2012@gmail.com', pageWidth - margin - 68, pageHeight - 6);
+    doc.text('Hotline: 0878-2224-8975 (Suherman) | suherman.reklame2012@gmail.com', pageWidth - margin - 82, pageHeight - 6);
   };
 
   let visualPageNumber = 2;

@@ -406,7 +406,7 @@ ${savingsNote}
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    Buka langsung di WhatsApp Web komputer Anda atau pindai QR Code dengan smartphone klien (+62 87822248975).
+                    Buka langsung di WhatsApp Web komputer Anda atau pindai QR Code dengan smartphone klien (0878-2224-8975 a.n. Suherman).
                   </div>
                 </div>
               </div>
@@ -1015,7 +1015,7 @@ ${savingsNote}
             <button
               onClick={() => openSpotDirectWhatsApp(spot, true)}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-bold rounded-lg text-xs shadow-sm shadow-emerald-950/20 transition-all active:scale-95 cursor-pointer"
-              title="Buka langsung di WhatsApp Web (web.whatsapp.com) dengan rincian lengkap ke nomor +62 87822248975"
+              title="Buka langsung di WhatsApp Web (web.whatsapp.com) dengan rincian lengkap ke nomor 0878-2224-8975 atas nama Suherman"
             >
               <MessageCircle className="w-4 h-4 fill-slate-950 text-[#25D366]" />
               <span>Chat WhatsApp Web</span>

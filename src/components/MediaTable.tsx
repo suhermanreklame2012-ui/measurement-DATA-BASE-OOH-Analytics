@@ -338,7 +338,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   const [pdfClientName, setPdfClientName] = useState<string>('Bpk. Hendra Wijaya');
   const [pdfClientCompany, setPdfClientCompany] = useState<string>('PT Mitra Bisnis Indonesia');
   const [pdfClientRole, setPdfClientRole] = useState<string>('Brand & Marketing Director');
-  const [pdfClientPhone, setPdfClientPhone] = useState<string>('0812-2002-390');
+  const [pdfClientPhone, setPdfClientPhone] = useState<string>('0878-2224-8975');
   const [pdfDuration, setPdfDuration] = useState<ProposalDuration>('1 Bulan');
   const [pdfCustomNote, setPdfCustomNote] = useState<string>('');
   const [savedClients, setSavedClients] = useState<ClientContact[]>([]);
@@ -385,7 +385,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
         name: pdfClientName.trim() || 'Klien Eksekutif',
         company: pdfClientCompany.trim() || 'Perusahaan Mitra',
         role: pdfClientRole.trim() || 'Marketing Director',
-        phone: pdfClientPhone.trim() || '0812-2002-390',
+        phone: pdfClientPhone.trim() || '0878-2224-8975',
         email: 'klien@perusahaan.co.id',
         category: 'Korporat',
         createdAt: new Date().toISOString(),
@@ -564,7 +564,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               }}
               disabled={spots.length === 0}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-bold rounded-lg border border-[#20bd5a] text-xs transition-all shadow-2xs active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-              title="Kirim rincian paket titik terpilih ke Admin Suherman Reklame via WhatsApp Web (+62 87822248975)"
+              title="Kirim rincian paket titik terpilih via WhatsApp ke 0878-2224-8975 atas nama Suherman"
             >
               <MessageCircle className="w-3.5 h-3.5 fill-slate-950 text-[#25D366]" />
               <span>
@@ -675,7 +675,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                   openMultipleSpotsDirectWhatsApp(selectedSpotsList, true);
                 }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-bold rounded-lg text-xs transition-colors shadow-xs active:scale-95 cursor-pointer"
-                title="Buka WhatsApp Web (+62 87822248975) untuk membagikan rincian titik terpilih ke Admin Suherman Reklame"
+                title="Buka WhatsApp Web (0878-2224-8975 atas nama Suherman) untuk membagikan rincian titik terpilih"
               >
                 <MessageCircle className="w-3.5 h-3.5 fill-slate-950 text-[#25D366]" />
                 <span>Batch Share to WhatsApp ({selectedIds.size})</span>
@@ -1105,7 +1105,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                           <button
                             onClick={() => openSpotDirectWhatsApp(spot, true)}
                             className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
-                            title="Buka Chat WhatsApp Web (+62 87822248975) dengan rincian titik ini"
+                            title="Buka Chat WhatsApp Web (0878-2224-8975 a.n. Suherman) dengan rincian titik ini"
                           >
                             <MessageCircle className="w-4 h-4 text-[#25D366] fill-[#25D366]/20" />
                           </button>
@@ -1356,7 +1356,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                               type="button"
                               onClick={() => openSpotDirectWhatsApp(spot, true)}
                               className="p-1.5 text-slate-800 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-                              title="Bagikan ke WhatsApp Admin (+62 87822248975)"
+                              title="Bagikan ke WhatsApp 0878-2224-8975 atas nama Suherman"
                             >
                               <MessageCircle className="w-4 h-4 text-[#25D366] fill-[#25D366]/20" />
                             </button>
@@ -1531,7 +1531,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                       type="text"
                       value={pdfClientPhone}
                       onChange={(e) => setPdfClientPhone(e.target.value)}
-                      placeholder="e.g. 0812-2002-390"
+                      placeholder="e.g. 0878-2224-8975"
                       className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                   </div>

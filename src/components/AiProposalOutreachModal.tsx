@@ -544,7 +544,7 @@ export const AiProposalOutreachModal: React.FC<AiProposalOutreachModalProps> = (
     if (!whatsappContent) return;
     const encodedText = encodeURIComponent(whatsappContent);
     window.open(`https://web.whatsapp.com/send?phone=${BUSINESS_WA_NUMBER}&text=${encodedText}`, '_blank');
-    setSendSuccessMessage(`Membuka percakapan ke WhatsApp Web Bisnis (+62 87822248975)!`);
+    setSendSuccessMessage(`Membuka percakapan ke WhatsApp 0878-2224-8975 atas nama Suherman!`);
   };
 
   // Send directly via Email
@@ -635,7 +635,7 @@ ${proposalSpots.map((s, idx) => `${idx + 1}. ${s.name} (${s.city}) - ${s.mediaTy
 ✅ Garansi Penerangan Malam / Operasional Layar LED Prima
 ✅ Laporan Monitoring Foto Berkala (Day & Night)
 
-Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
+Kontak: Suherman Reklame (WA: 0878-2224-8975 a.n. Suherman)`;
 
     navigator.clipboard.writeText(summaryText);
     setCopiedDeck(true);
@@ -1939,7 +1939,7 @@ Kontak: Suherman Reklame (WA: 0812-3456-7890 / 0878-2224-8975)`;
                         onClick={handleSendToBusinessWA}
                         disabled={!whatsappContent}
                         className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-500/30 transition-colors disabled:opacity-40 cursor-pointer"
-                        title="Kirim atau arsipkan salinan penawaran ke WhatsApp Bisnis (+62 87822248975)"
+                        title="Kirim atau arsipkan salinan penawaran ke WhatsApp 0878-2224-8975 atas nama Suherman"
                       >
                         <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
                         <span>Kirim ke WA Bisnis</span>

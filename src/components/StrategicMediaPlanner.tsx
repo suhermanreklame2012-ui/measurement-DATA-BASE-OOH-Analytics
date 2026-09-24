@@ -148,7 +148,7 @@ export const StrategicMediaPlanner: React.FC<StrategicMediaPlannerProps> = ({
       ),
       `------------------------------------------`,
       `Catatan Analis: ${currentPlan.executiveAssessment}`,
-      `Hubungi: 0812-2002-390 (Suherman Reklame Bandung)`
+      `Hubungi: 0878-2224-8975 atas nama Suherman (Suherman Reklame Bandung)`
     ];
 
     navigator.clipboard.writeText(lines.join('\n'));

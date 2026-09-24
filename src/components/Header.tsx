@@ -18,7 +18,8 @@ import {
   ChevronDown,
   Calculator,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  Briefcase
 } from 'lucide-react';
 import { MediaSpot, NotificationLog } from '../types/ooh';
 import { formatCompactNumber } from '../utils/formatters';
@@ -38,8 +39,8 @@ interface HeaderProps {
   onOpenEstimatedRoi?: () => void;
   onToggleNotif: () => void;
   isNotifOpen: boolean;
-  activeTab: 'map' | 'analytics' | 'table' | 'planner' | 'roi';
-  setActiveTab: (tab: 'map' | 'analytics' | 'table' | 'planner' | 'roi') => void;
+  activeTab: 'map' | 'analytics' | 'table' | 'planner' | 'roi' | 'crm';
+  setActiveTab: (tab: 'map' | 'analytics' | 'table' | 'planner' | 'roi' | 'crm') => void;
   isFirestoreConnected?: boolean;
 }
 
@@ -155,6 +156,28 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
 
+            {/* 0. PIPELINE CRM PENAWARAN (MAIN HEADER ACTION) */}
+            <button
+              type="button"
+              id="main-header-crm-pipeline-btn"
+              onClick={() => {
+                setActiveTab('crm');
+                if (onOpenCrm) onOpenCrm();
+              }}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm cursor-pointer ${
+                activeTab === 'crm'
+                  ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-500/40 shadow-emerald-950/40'
+                  : 'bg-gradient-to-r from-emerald-950/90 via-slate-800 to-slate-800 hover:from-emerald-900 hover:to-slate-700 text-emerald-200 hover:text-white border-emerald-500/50'
+              }`}
+              title="Pipeline CRM Penawaran (Arah Prospek, PIC, Nilai Peluang & Tindak Lanjut)"
+            >
+              <Briefcase className="w-4 h-4 text-emerald-400" />
+              <span className="tracking-tight font-bold">Pipeline CRM</span>
+              <span className="hidden sm:inline-flex px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono border border-emerald-500/30 font-bold">
+                Sales CRM
+              </span>
+            </button>
+
             {/* MASTER DATA BASE FOLDER MENU */}
             <div className="relative" ref={masterMenuRef}>
               <button
@@ -200,7 +223,7 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
-                        9 Menu
+                        8 Menu
                       </span>
                     </div>
                   </div>
@@ -388,38 +411,6 @@ export const Header: React.FC<HeaderProps> = ({
                       </div>
                     </button>
 
-                    {/* Pipeline CRM Penawaran */}
-                    <button
-                      type="button"
-                      id="menu-crm-pipeline-btn"
-                      onClick={() => {
-                        setIsMasterMenuOpen(false);
-                        if (onOpenCrm) {
-                          onOpenCrm();
-                        } else {
-                          onOpenAiProposal();
-                        }
-                      }}
-                      className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left hover:bg-slate-800/80 transition-colors group"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                        <Layers className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors">
-                            Pipeline CRM Penawaran
-                          </span>
-                          <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                            Sales CRM
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 truncate">
-                          Setiap lead punya arah jelas: Posisi, PIC, nilai peluang & alur
-                        </p>
-                      </div>
-                    </button>
-
                     {/* Laporan PDF */}
                     <button
                       type="button"
@@ -583,6 +574,24 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
               }`}>
                 CTR Model
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('crm')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'crm'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Pipeline CRM Penawaran</span>
+              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+                activeTab === 'crm' 
+                  ? 'bg-white/20 text-white' 
+                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              }`}>
+                Sales CRM
               </span>
             </button>
           </nav>

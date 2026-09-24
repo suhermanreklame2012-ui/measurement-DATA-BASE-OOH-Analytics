@@ -48,7 +48,7 @@ export default function App() {
   const [spots, setSpots] = useState<MediaSpot[]>(() => getStoredSpots());
   const [notifications, setNotifications] = useState<NotificationLog[]>(() => getStoredNotifications());
   const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'map' | 'analytics' | 'table' | 'planner' | 'roi'>('map');
+  const [activeTab, setActiveTab] = useState<'map' | 'analytics' | 'table' | 'planner' | 'roi' | 'crm'>('map');
   const [roiSpotId, setRoiSpotId] = useState<string | undefined>(undefined);
 
   // Modals state
@@ -373,7 +373,10 @@ export default function App() {
         onOpenReport={() => setIsReportModalOpen(true)}
         onOpenAiSecurity={() => setIsAiSecurityModalOpen(true)}
         onOpenAiProposal={() => handleOpenAiProposal()}
-        onOpenCrm={() => setIsCrmStandaloneOpen(true)}
+        onOpenCrm={() => {
+          setActiveTab('crm');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         onToggleNotif={() => setIsNotifDropdownOpen(!isNotifDropdownOpen)}
         isNotifOpen={isNotifDropdownOpen}
         activeTab={activeTab}
@@ -390,15 +393,17 @@ export default function App() {
         onMarkAllAsRead={markNotificationsAsRead}
       />
 
-      {/* Interactive Filter Bar */}
-      <FilterBar
-        filter={filter}
-        onFilterChange={setFilter}
-        availableCities={availableCities}
-        totalMatches={filteredSpots.length}
-        totalSpots={spots.length}
-        spots={spots}
-      />
+      {/* Interactive Filter Bar (Hidden when in Pipeline CRM view for clean workspace) */}
+      {activeTab !== 'crm' && (
+        <FilterBar
+          filter={filter}
+          onFilterChange={setFilter}
+          availableCities={availableCities}
+          totalMatches={filteredSpots.length}
+          totalSpots={spots.length}
+          spots={spots}
+        />
+      )}
 
       {/* Main Content Body */}
       <main className="flex-1 pb-16">
@@ -511,6 +516,19 @@ export default function App() {
               standalone={true}
               onSelectSpot={(spot) => setSelectedSpot(spot)}
               onOpenAiProposal={(chosenSpot) => handleOpenAiProposal([chosenSpot])}
+            />
+          </div>
+        )}
+
+        {/* TAB 6: Pipeline CRM Penawaran OOH (Menu Utama Header) */}
+        {activeTab === 'crm' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+            <CrmPipelineView
+              allSpots={spots}
+              isStandalone={false}
+              onOpenProposalWithLead={() => {
+                handleOpenAiProposal();
+              }}
             />
           </div>
         )}

@@ -31,7 +31,15 @@ import {
   Maximize2,
   Minimize2,
   RefreshCw,
-  FolderOpen
+  FolderOpen,
+  SlidersHorizontal,
+  ArrowUpDown,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  UserCheck,
+  UserX,
+  Target
 } from 'lucide-react';
 import { 
   CrmLead, 
@@ -74,11 +82,18 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
   const [clients, setClients] = useState<ClientContact[]>(() => getStoredClients());
   const [activeTab, setActiveTab] = useState<'pipeline' | 'agenda' | 'clients' | 'reports' | 'documents' | 'team'>('pipeline');
   
-  // Filtering states
+  // Comprehensive Filtering & Prioritization states
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterStage, setFilterStage] = useState<string>('ALL');
-  const [filterPic, setFilterPic] = useState<string>('ALL');
   const [filterPriority, setFilterPriority] = useState<string>('ALL');
+  const [filterPic, setFilterPic] = useState<string>('ALL');
+  const [filterPicStatus, setFilterPicStatus] = useState<'ALL' | 'assigned' | 'unassigned'>('ALL');
+  const [filterDealTier, setFilterDealTier] = useState<'ALL' | 'tier_jumbo' | 'tier_medium' | 'tier_starter' | 'tier_custom'>('ALL');
+  const [minDealValue, setMinDealValue] = useState<string>('');
+  const [maxDealValue, setMaxDealValue] = useState<string>('');
+  const [filterDueDate, setFilterDueDate] = useState<'ALL' | 'overdue' | 'today' | 'tomorrow' | 'this_week' | 'this_month' | 'no_date'>('ALL');
+  const [sortBy, setSortBy] = useState<'value_desc' | 'value_asc' | 'due_date_asc' | 'priority_desc' | 'updated_desc'>('value_desc');
+  const [isFilterPanelExpanded, setIsFilterPanelExpanded] = useState<boolean>(true);
 
   // Lead modal state
   const [isLeadModalOpen, setIsLeadModalOpen] = useState<boolean>(false);
@@ -109,26 +124,206 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
     return calculateCrmMetrics(leads);
   }, [leads]);
 
-  // Filtered leads
+  // Today reference string
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // Dynamic PIC list from team and existing leads
+  const availablePics = useMemo(() => {
+    const picSet = new Set<string>();
+    SALES_TEAM_PICS.forEach((p) => picSet.add(p.name));
+    leads.forEach((l) => {
+      const p = (l.picName || '').trim();
+      if (p && p !== '-' && p.toLowerCase() !== 'unassigned' && p.toLowerCase() !== 'belum ada pic') {
+        picSet.add(p);
+      }
+    });
+    return Array.from(picSet);
+  }, [leads]);
+
+  // Quick stats counts for instant badge indicators
+  const leadQuickStats = useMemo(() => {
+    const today = new Date();
+    const todayISO = today.toISOString().split('T')[0];
+    let overdueCount = 0;
+    let todayCount = 0;
+    let jumboCount = 0;
+    let unassignedCount = 0;
+    let hotCount = 0;
+
+    leads.forEach((l) => {
+      if ((l.dealValue || 0) >= 200_000_000) jumboCount++;
+      if (l.priority === 'hot') hotCount++;
+      const pic = (l.picName || '').trim();
+      if (!pic || pic === '-' || pic.toLowerCase() === 'unassigned' || pic.toLowerCase() === 'belum ada pic') {
+        unassignedCount++;
+      }
+      if (l.nextActionDate) {
+        if (l.nextActionDate < todayISO) overdueCount++;
+        else if (l.nextActionDate === todayISO) todayCount++;
+      }
+    });
+
+    return { overdueCount, todayCount, jumboCount, unassignedCount, hotCount };
+  }, [leads]);
+
+  // Active filters count
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (searchQuery.trim()) count++;
+    if (filterStage !== 'ALL') count++;
+    if (filterPriority !== 'ALL') count++;
+    if (filterDealTier !== 'ALL') count++;
+    if (minDealValue !== '' || maxDealValue !== '') count++;
+    if (filterDueDate !== 'ALL') count++;
+    if (filterPicStatus !== 'ALL') count++;
+    if (filterPic !== 'ALL') count++;
+    if (sortBy !== 'value_desc') count++;
+    return count;
+  }, [
+    searchQuery,
+    filterStage,
+    filterPriority,
+    filterDealTier,
+    minDealValue,
+    maxDealValue,
+    filterDueDate,
+    filterPicStatus,
+    filterPic,
+    sortBy
+  ]);
+
+  // Reset all filters
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setFilterStage('ALL');
+    setFilterPriority('ALL');
+    setFilterDealTier('ALL');
+    setMinDealValue('');
+    setMaxDealValue('');
+    setFilterDueDate('ALL');
+    setFilterPicStatus('ALL');
+    setFilterPic('ALL');
+    setSortBy('value_desc');
+  };
+
+  // Filtered and sorted leads
   const filteredLeads = useMemo(() => {
-    return leads.filter((lead) => {
+    const today = new Date();
+    const todayISO = today.toISOString().split('T')[0];
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowISO = tomorrow.toISOString().split('T')[0];
+
+    const in7Days = new Date(today);
+    in7Days.setDate(in7Days.getDate() + 7);
+    const in7DaysISO = in7Days.toISOString().split('T')[0];
+
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+
+    const result = leads.filter((lead) => {
+      // 1. Stage filter
       if (filterStage !== 'ALL' && lead.stage !== filterStage) return false;
-      if (filterPic !== 'ALL' && lead.picName !== filterPic) return false;
+
+      // 2. Priority filter
       if (filterPriority !== 'ALL' && lead.priority !== filterPriority) return false;
+
+      // 3. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchCompany = lead.companyName.toLowerCase().includes(q);
-        const matchContact = lead.contactPerson.toLowerCase().includes(q);
-        const matchLocation = lead.targetLocationsSummary.toLowerCase().includes(q);
-        const matchNext = lead.nextAction.toLowerCase().includes(q);
-        const matchPic = lead.picName.toLowerCase().includes(q);
+        const matchCompany = lead.companyName?.toLowerCase().includes(q);
+        const matchContact = lead.contactPerson?.toLowerCase().includes(q);
+        const matchLocation = lead.targetLocationsSummary?.toLowerCase().includes(q);
+        const matchNext = lead.nextAction?.toLowerCase().includes(q);
+        const matchPic = lead.picName?.toLowerCase().includes(q);
         if (!matchCompany && !matchContact && !matchLocation && !matchNext && !matchPic) {
           return false;
         }
       }
+
+      // 4. Deal Value (Nilai Peluang) Filter
+      const val = lead.dealValue || 0;
+      if (filterDealTier === 'tier_jumbo' && val < 200_000_000) return false;
+      if (filterDealTier === 'tier_medium' && (val < 50_000_000 || val >= 200_000_000)) return false;
+      if (filterDealTier === 'tier_starter' && val >= 50_000_000) return false;
+      if (minDealValue !== '' && val < Number(minDealValue)) return false;
+      if (maxDealValue !== '' && val > Number(maxDealValue)) return false;
+
+      // 5. Follow-up Due Date (Tanggal Jatuh Tempo Tindak Lanjut) Filter
+      const dueDate = lead.nextActionDate?.trim();
+      if (filterDueDate !== 'ALL') {
+        if (filterDueDate === 'no_date') {
+          if (dueDate) return false;
+        } else if (!dueDate) {
+          return false;
+        } else if (filterDueDate === 'overdue') {
+          if (dueDate >= todayISO) return false;
+        } else if (filterDueDate === 'today') {
+          if (dueDate !== todayISO) return false;
+        } else if (filterDueDate === 'tomorrow') {
+          if (dueDate !== tomorrowISO) return false;
+        } else if (filterDueDate === 'this_week') {
+          if (dueDate < todayISO || dueDate > in7DaysISO) return false;
+        } else if (filterDueDate === 'this_month') {
+          const d = new Date(dueDate);
+          if (isNaN(d.getTime()) || d.getFullYear() !== currentYear || d.getMonth() !== currentMonth) return false;
+        }
+      }
+
+      // 6. PIC Status & Assignment Filter
+      const pic = (lead.picName || '').trim();
+      const isUnassigned = !pic || pic === '-' || pic.toLowerCase() === 'unassigned' || pic.toLowerCase() === 'belum ada pic';
+
+      if (filterPicStatus === 'assigned' && isUnassigned) return false;
+      if (filterPicStatus === 'unassigned' && !isUnassigned) return false;
+
+      // 7. Specific PIC Filter
+      if (filterPic !== 'ALL' && lead.picName !== filterPic) return false;
+
       return true;
     });
-  }, [leads, filterStage, filterPic, filterPriority, searchQuery]);
+
+    // Sort leads according to selected criteria
+    result.sort((a, b) => {
+      if (sortBy === 'value_desc') {
+        return (b.dealValue || 0) - (a.dealValue || 0);
+      }
+      if (sortBy === 'value_asc') {
+        return (a.dealValue || 0) - (b.dealValue || 0);
+      }
+      if (sortBy === 'due_date_asc') {
+        if (!a.nextActionDate) return 1;
+        if (!b.nextActionDate) return -1;
+        return a.nextActionDate.localeCompare(b.nextActionDate);
+      }
+      if (sortBy === 'priority_desc') {
+        const pOrder: Record<string, number> = { hot: 4, attention: 3, warm: 2, cold: 1 };
+        return (pOrder[b.priority] || 0) - (pOrder[a.priority] || 0);
+      }
+      // default: updated_desc
+      return (b.updatedAt || '').localeCompare(a.updatedAt || '');
+    });
+
+    return result;
+  }, [
+    leads,
+    filterStage,
+    filterPriority,
+    searchQuery,
+    filterDealTier,
+    minDealValue,
+    maxDealValue,
+    filterDueDate,
+    filterPicStatus,
+    filterPic,
+    sortBy
+  ]);
+
+  // Aggregate deal value of filtered leads
+  const filteredPipelineValue = useMemo(() => {
+    return filteredLeads.reduce((acc, curr) => acc + (curr.dealValue || 0), 0);
+  }, [filteredLeads]);
 
   // Group leads by stage for Kanban
   const leadsByStage = useMemo(() => {
@@ -535,63 +730,400 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
         </div>
       </div>
 
-      {/* Filter Toolbar (For Pipeline tab) */}
+      {/* 02. ADVANCED CRM FILTER & PRIORITIZATION PANEL */}
       {activeTab === 'pipeline' && (
-        <div className="px-4 sm:px-6 py-2.5 bg-slate-950/60 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
-          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-            <div className="relative w-full max-w-xs">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Cari perusahaan, PIC, atau lokasi titik..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
+        <div className="bg-slate-950/80 border-b border-slate-800 shrink-0 transition-all">
+          {/* Top Filter Header Bar */}
+          <div className="px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/60 bg-slate-900/60">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                </span>
+                <span className="text-xs font-bold text-white tracking-wide">
+                  Panel Filter &amp; Prioritas Prospek
+                </span>
+              </div>
+
+              {/* Active Filter Count Badge */}
+              {activeFiltersCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
+                  {activeFiltersCount} Filter Aktif
+                </span>
+              )}
+
+              {/* Result Summary */}
+              <span className="text-[11px] text-slate-400">
+                Menampilkan <strong className="text-white font-mono">{filteredLeads.length}</strong> dari {leads.length} prospek
+              </span>
+
+              {/* Filtered Pipeline Value */}
+              <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-slate-800/80 border border-slate-700/60 text-[11px]">
+                <span className="text-slate-400">Nilai Tersaring:</span>
+                <span className="font-extrabold text-emerald-400 font-mono">
+                  {formatIDR(filteredPipelineValue)}
+                </span>
+              </div>
             </div>
 
-            {/* Priority Filter */}
-            <select
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="ALL">Semua Prioritas</option>
-              <option value="hot">🔥 Lead Panas</option>
-              <option value="attention">⚠️ Perlu Perhatian</option>
-              <option value="warm">Kategori Hangat</option>
-              <option value="cold">Kategori Dingin</option>
-            </select>
+            {/* Quick Actions: Reset & Toggle Expand */}
+            <div className="flex items-center gap-2">
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-colors cursor-pointer"
+                  title="Hapus semua filter dan tampilkan seluruh prospek"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset Filter</span>
+                </button>
+              )}
 
-            {/* PIC Filter */}
-            <select
-              value={filterPic}
-              onChange={(e) => setFilterPic(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 hidden sm:block"
-            >
-              <option value="ALL">Semua PIC Sales</option>
-              {SALES_TEAM_PICS.map((pic) => (
-                <option key={pic.id} value={pic.name}>{pic.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 text-slate-400 text-[11px]">
-            <span>Menampilkan <strong>{filteredLeads.length}</strong> dari {leads.length} prospek</span>
-            {(searchQuery || filterPriority !== 'ALL' || filterPic !== 'ALL') && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setFilterPriority('ALL');
-                  setFilterPic('ALL');
-                }}
-                className="text-emerald-400 hover:text-emerald-300 underline font-semibold ml-1 cursor-pointer"
+                onClick={() => setIsFilterPanelExpanded(!isFilterPanelExpanded)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80 text-xs font-medium transition-colors cursor-pointer"
               >
-                Reset Filter
+                <span>{isFilterPanelExpanded ? 'Ringkas Panel' : 'Perluas Filter'}</span>
+                {isFilterPanelExpanded ? (
+                  <ChevronUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                )}
               </button>
-            )}
+            </div>
           </div>
+
+          {/* Quick Preset Shortcut Chips */}
+          <div className="px-4 sm:px-6 py-2 flex items-center gap-1.5 overflow-x-auto border-b border-slate-800/40 text-xs bg-slate-950/40">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mr-1 shrink-0">
+              Pintasan Prioritas:
+            </span>
+
+            {/* Chip: Semua */}
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all shrink-0 cursor-pointer ${
+                activeFiltersCount === 0
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/60'
+              }`}
+            >
+              Semua Prospek ({leads.length})
+            </button>
+
+            {/* Chip: 🔥 Lead Panas */}
+            <button
+              type="button"
+              onClick={() => {
+                setFilterPriority(filterPriority === 'hot' ? 'ALL' : 'hot');
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all shrink-0 cursor-pointer ${
+                filterPriority === 'hot'
+                  ? 'bg-amber-600 text-white shadow-xs ring-1 ring-amber-400'
+                  : 'bg-amber-950/40 hover:bg-amber-950/60 text-amber-300 border border-amber-500/40'
+              }`}
+            >
+              <Flame className="w-3 h-3 text-amber-400 fill-amber-400" />
+              <span>Lead Panas ({leadQuickStats.hotCount})</span>
+            </button>
+
+            {/* Chip: ⚠️ Lewat Jatuh Tempo */}
+            <button
+              type="button"
+              onClick={() => {
+                setFilterDueDate(filterDueDate === 'overdue' ? 'ALL' : 'overdue');
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all shrink-0 cursor-pointer ${
+                filterDueDate === 'overdue'
+                  ? 'bg-rose-600 text-white shadow-xs ring-1 ring-rose-400'
+                  : 'bg-rose-950/40 hover:bg-rose-950/60 text-rose-300 border border-rose-500/40'
+              }`}
+            >
+              <AlertTriangle className="w-3 h-3 text-rose-400" />
+              <span>Lewat Jatuh Tempo ({leadQuickStats.overdueCount})</span>
+            </button>
+
+            {/* Chip: ⏰ Hari Ini */}
+            <button
+              type="button"
+              onClick={() => {
+                setFilterDueDate(filterDueDate === 'today' ? 'ALL' : 'today');
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all shrink-0 cursor-pointer ${
+                filterDueDate === 'today'
+                  ? 'bg-blue-600 text-white shadow-xs ring-1 ring-blue-400'
+                  : 'bg-blue-950/40 hover:bg-blue-950/60 text-blue-300 border border-blue-500/40'
+              }`}
+            >
+              <Clock className="w-3 h-3 text-blue-400" />
+              <span>Jatuh Tempo Hari Ini ({leadQuickStats.todayCount})</span>
+            </button>
+
+            {/* Chip: 💎 Deal Jumbo (> Rp 200 Jt) */}
+            <button
+              type="button"
+              onClick={() => {
+                setFilterDealTier(filterDealTier === 'tier_jumbo' ? 'ALL' : 'tier_jumbo');
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all shrink-0 cursor-pointer ${
+                filterDealTier === 'tier_jumbo'
+                  ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400'
+                  : 'bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
+              }`}
+            >
+              <DollarSign className="w-3 h-3 text-emerald-400" />
+              <span>Deal Jumbo &gt; 200 Jt ({leadQuickStats.jumboCount})</span>
+            </button>
+
+            {/* Chip: 👤 Belum Ada PIC */}
+            <button
+              type="button"
+              onClick={() => {
+                setFilterPicStatus(filterPicStatus === 'unassigned' ? 'ALL' : 'unassigned');
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all shrink-0 cursor-pointer ${
+                filterPicStatus === 'unassigned'
+                  ? 'bg-purple-600 text-white shadow-xs ring-1 ring-purple-400'
+                  : 'bg-purple-950/40 hover:bg-purple-950/60 text-purple-300 border border-purple-500/40'
+              }`}
+            >
+              <UserX className="w-3 h-3 text-purple-400" />
+              <span>Belum Ada PIC ({leadQuickStats.unassignedCount})</span>
+            </button>
+          </div>
+
+          {/* Expanded Filter Controls Matrix */}
+          {isFilterPanelExpanded && (
+            <div className="p-4 sm:px-6 sm:py-3.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs bg-slate-900/50">
+              
+              {/* FILTER 1: NILAI PELUANG (DEAL VALUE) */}
+              <div className="space-y-1.5 p-3 rounded-xl bg-slate-800/60 border border-slate-700/60">
+                <div className="flex items-center justify-between text-slate-300 font-bold">
+                  <label className="flex items-center gap-1.5 text-emerald-400">
+                    <DollarSign className="w-4 h-4" />
+                    <span>1. Nilai Peluang (Deal Value)</span>
+                  </label>
+                  {(filterDealTier !== 'ALL' || minDealValue !== '' || maxDealValue !== '') && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setFilterDealTier('ALL');
+                        setMinDealValue('');
+                        setMaxDealValue('');
+                      }}
+                      className="text-[10px] text-slate-400 hover:text-emerald-400"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                
+                <select
+                  value={filterDealTier}
+                  onChange={(e) => {
+                    const val = e.target.value as any;
+                    setFilterDealTier(val);
+                    if (val !== 'tier_custom') {
+                      setMinDealValue('');
+                      setMaxDealValue('');
+                    }
+                  }}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
+                >
+                  <option value="ALL">Semua Nilai Peluang</option>
+                  <option value="tier_jumbo">💎 Jumbo Enterprise (&gt; Rp 200 Jt)</option>
+                  <option value="tier_medium">🏢 Menengah (Rp 50 Jt - Rp 200 Jt)</option>
+                  <option value="tier_starter">🏪 Reguler / Starter (&lt; Rp 50 Jt)</option>
+                  <option value="tier_custom">⚙️ Rentang Kustom (Min - Max IDR)</option>
+                </select>
+
+                {/* Custom Min / Max Inputs */}
+                {filterDealTier === 'tier_custom' && (
+                  <div className="grid grid-cols-2 gap-2 pt-1 animate-in fade-in duration-150">
+                    <div>
+                      <span className="text-[10px] text-slate-400">Min (Juta):</span>
+                      <input
+                        type="number"
+                        placeholder="Contoh: 50"
+                        value={minDealValue ? Number(minDealValue) / 1_000_000 : ''}
+                        onChange={(e) => setMinDealValue(e.target.value ? String(Number(e.target.value) * 1_000_000) : '')}
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-[11px]"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400">Max (Juta):</span>
+                      <input
+                        type="number"
+                        placeholder="Contoh: 500"
+                        value={maxDealValue ? Number(maxDealValue) / 1_000_000 : ''}
+                        onChange={(e) => setMaxDealValue(e.target.value ? String(Number(e.target.value) * 1_000_000) : '')}
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-[11px]"
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                  <span>Membantu fokus pada deal bernilai tinggi</span>
+                </div>
+              </div>
+
+              {/* FILTER 2: TANGGAL JATUH TEMPO TINDAK LANJUT */}
+              <div className="space-y-1.5 p-3 rounded-xl bg-slate-800/60 border border-slate-700/60">
+                <div className="flex items-center justify-between text-slate-300 font-bold">
+                  <label className="flex items-center gap-1.5 text-blue-400">
+                    <Calendar className="w-4 h-4" />
+                    <span>2. Jatuh Tempo Tindak Lanjut</span>
+                  </label>
+                  {filterDueDate !== 'ALL' && (
+                    <button 
+                      type="button" 
+                      onClick={() => setFilterDueDate('ALL')}
+                      className="text-[10px] text-slate-400 hover:text-blue-400"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+
+                <select
+                  value={filterDueDate}
+                  onChange={(e) => setFilterDueDate(e.target.value as any)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-medium"
+                >
+                  <option value="ALL">Semua Jadwal Tindak Lanjut</option>
+                  <option value="overdue">⚠️ Lewat Jatuh Tempo (Kritis!)</option>
+                  <option value="today">⏰ Jatuh Tempo Hari Ini</option>
+                  <option value="tomorrow">📅 Jatuh Tempo Besok</option>
+                  <option value="this_week">🗓️ Minggu Ini (Dalam 7 Hari)</option>
+                  <option value="this_month">📆 Bulan Berjalan</option>
+                  <option value="no_date">❓ Belum Ada Tanggal Tindak Lanjut</option>
+                </select>
+
+                <div className="text-[10px] text-slate-400 flex items-center justify-between pt-0.5">
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                    {leadQuickStats.overdueCount} Lewat Tempo
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    {leadQuickStats.todayCount} Hari Ini
+                  </span>
+                </div>
+              </div>
+
+              {/* FILTER 3: STATUS PIC & TIM SALES */}
+              <div className="space-y-1.5 p-3 rounded-xl bg-slate-800/60 border border-slate-700/60">
+                <div className="flex items-center justify-between text-slate-300 font-bold">
+                  <label className="flex items-center gap-1.5 text-purple-400">
+                    <Users className="w-4 h-4" />
+                    <span>3. Status PIC &amp; Penugasan</span>
+                  </label>
+                  {(filterPic !== 'ALL' || filterPicStatus !== 'ALL') && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setFilterPic('ALL');
+                        setFilterPicStatus('ALL');
+                      }}
+                      className="text-[10px] text-slate-400 hover:text-purple-400"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  {/* Status Penugasan */}
+                  <select
+                    value={filterPicStatus}
+                    onChange={(e) => setFilterPicStatus(e.target.value as any)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 focus:outline-none focus:border-purple-500 font-medium text-[11px]"
+                  >
+                    <option value="ALL">Semua Status</option>
+                    <option value="assigned">Sudah Ditugaskan</option>
+                    <option value="unassigned">Belum Ada PIC</option>
+                  </select>
+
+                  {/* Pilih PIC Spesifik */}
+                  <select
+                    value={filterPic}
+                    onChange={(e) => setFilterPic(e.target.value)}
+                    disabled={filterPicStatus === 'unassigned'}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 focus:outline-none focus:border-purple-500 font-medium text-[11px] disabled:opacity-50"
+                  >
+                    <option value="ALL">Semua PIC</option>
+                    {availablePics.map((picName) => (
+                      <option key={picName} value={picName}>{picName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-[10px] text-slate-400 flex items-center justify-between pt-0.5">
+                  <span>Pantau beban kerja &amp; distribusi lead</span>
+                </div>
+              </div>
+
+              {/* FILTER 4: PENCARIAN & PENGURUTAN (SORTING) */}
+              <div className="space-y-1.5 p-3 rounded-xl bg-slate-800/60 border border-slate-700/60">
+                <div className="flex items-center justify-between text-slate-300 font-bold">
+                  <label className="flex items-center gap-1.5 text-amber-400">
+                    <ArrowUpDown className="w-4 h-4" />
+                    <span>4. Cari &amp; Urutkan Prospek</span>
+                  </label>
+                  {(searchQuery || sortBy !== 'value_desc') && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSortBy('value_desc');
+                      }}
+                      className="text-[10px] text-slate-400 hover:text-amber-400"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+
+                {/* Search Input */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Nama klien, PT, lokasi titik..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-2.5 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-xs"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Sorting Select */}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-amber-500 font-medium text-[11px]"
+                >
+                  <option value="value_desc">Nilai Peluang Tertinggi ↓</option>
+                  <option value="value_asc">Nilai Peluang Terendah ↑</option>
+                  <option value="due_date_asc">Jatuh Tempo Paling Mendesak ↑</option>
+                  <option value="priority_desc">Prioritas (🔥 Hot → Cold)</option>
+                  <option value="updated_desc">Terakhir Diperbarui</option>
+                </select>
+              </div>
+
+            </div>
+          )}
         </div>
       )}
 
@@ -600,7 +1132,29 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
         
         {/* VIEW 1: PIPELINE KANBAN (02 Pipeline lebih mudah dijalankan) */}
         {activeTab === 'pipeline' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-start min-h-[500px]">
+          <div className="space-y-4">
+            {/* Empty state if no leads match active filters */}
+            {filteredLeads.length === 0 && (
+              <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-2.5">
+                <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 mx-auto flex items-center justify-center border border-slate-700">
+                  <Filter className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-white">Tidak ada prospek yang cocok dengan kombinasi filter</h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                  Tidak ditemukan prospek dengan kriteria Nilai Peluang, Jatuh Tempo Tindak Lanjut, atau Status PIC yang Anda pilih.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer mt-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Seluruh Filter ({activeFiltersCount} Filter Aktif)</span>
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-start min-h-[500px]">
             {CRM_STAGES.map((stageConfig) => {
               const stageLeads = leadsByStage[stageConfig.id] || [];
               const stageTotalValue = stageLeads.reduce((acc, curr) => acc + (curr.dealValue || 0), 0);
@@ -649,6 +1203,10 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
                     {stageLeads.map((lead) => {
                       const isHot = lead.priority === 'hot';
                       const isAttention = lead.priority === 'attention';
+                      const isJumbo = (lead.dealValue || 0) >= 200_000_000;
+                      const isOverdue = Boolean(lead.nextActionDate && lead.nextActionDate < todayStr);
+                      const isToday = Boolean(lead.nextActionDate && lead.nextActionDate === todayStr);
+                      const isUnassigned = !lead.picName || lead.picName === '-' || lead.picName.toLowerCase() === 'unassigned' || lead.picName.toLowerCase() === 'belum ada pic';
 
                       return (
                         <div
@@ -660,6 +1218,8 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
                               ? 'border-amber-500/60 ring-1 ring-amber-500/20' 
                               : isAttention
                               ? 'border-rose-500/50'
+                              : isOverdue
+                              ? 'border-rose-500/40 ring-1 ring-rose-500/20'
                               : 'border-slate-700/80 hover:border-slate-600'
                           }`}
                         >
@@ -669,18 +1229,26 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
                               <h5 className="font-bold text-sm text-white group-hover:text-emerald-300 transition-colors line-clamp-1">
                                 {lead.companyName}
                               </h5>
-                              {isHot && (
-                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[9px] flex items-center gap-0.5 border border-amber-500/40 shrink-0">
-                                  <Flame className="w-2.5 h-2.5 fill-amber-400" />
-                                  Hot
-                                </span>
-                              )}
-                              {isAttention && (
-                                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold text-[9px] flex items-center gap-0.5 border border-rose-500/40 shrink-0">
-                                  <AlertTriangle className="w-2.5 h-2.5" />
-                                  Perhatian
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1 shrink-0">
+                                {isJumbo && (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[9px] flex items-center gap-0.5 border border-emerald-500/40">
+                                    <DollarSign className="w-2.5 h-2.5 text-emerald-400" />
+                                    Jumbo
+                                  </span>
+                                )}
+                                {isHot && (
+                                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[9px] flex items-center gap-0.5 border border-amber-500/40">
+                                    <Flame className="w-2.5 h-2.5 fill-amber-400" />
+                                    Hot
+                                  </span>
+                                )}
+                                {isAttention && (
+                                  <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold text-[9px] flex items-center gap-0.5 border border-rose-500/40">
+                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                    Perhatian
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
                             {/* Contact Person & Role */}
@@ -709,8 +1277,10 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
                             <div>
                               <div className="text-[10px] text-slate-400">PIC Penanggung Jawab</div>
                               <div className="font-bold text-slate-200 text-[11px] flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                                <span>{lead.picName}</span>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isUnassigned ? 'bg-purple-400' : 'bg-blue-400'}`} />
+                                <span className={isUnassigned ? 'text-purple-300 font-bold' : ''}>
+                                  {isUnassigned ? 'Belum Ada PIC' : lead.picName}
+                                </span>
                               </div>
                             </div>
                             <div className="text-right">
@@ -722,15 +1292,35 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
                           </div>
 
                           {/* TINDAK LANJUT BERIKUTNYA (Direction & Due Date) */}
-                          <div className="p-2 rounded-lg bg-emerald-950/30 border border-emerald-500/30 space-y-1">
-                            <div className="text-[10px] font-bold text-emerald-300 flex items-center justify-between">
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-emerald-400" />
-                                Tindak Lanjut Berikutnya:
+                          <div className={`p-2 rounded-lg border space-y-1 ${
+                            isOverdue
+                              ? 'bg-rose-950/40 border-rose-500/50'
+                              : isToday
+                              ? 'bg-amber-950/40 border-amber-500/50'
+                              : 'bg-emerald-950/30 border-emerald-500/30'
+                          }`}>
+                            <div className="text-[10px] font-bold flex items-center justify-between">
+                              <span className={`flex items-center gap-1 ${
+                                isOverdue ? 'text-rose-300' : isToday ? 'text-amber-300' : 'text-emerald-300'
+                              }`}>
+                                <Clock className={`w-3 h-3 ${isOverdue ? 'text-rose-400' : isToday ? 'text-amber-400' : 'text-emerald-400'}`} />
+                                Tindak Lanjut:
                               </span>
-                              <span className="font-mono text-[9px] text-slate-400">
-                                {lead.nextActionDate}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                {isOverdue && (
+                                  <span className="px-1 py-0.2 rounded bg-rose-500/30 text-rose-300 text-[8px] font-bold animate-pulse">
+                                    LEWAT TEMPO
+                                  </span>
+                                )}
+                                {isToday && (
+                                  <span className="px-1 py-0.2 rounded bg-amber-500/30 text-amber-300 text-[8px] font-bold">
+                                    HARI INI
+                                  </span>
+                                )}
+                                <span className="font-mono text-[9px] text-slate-400">
+                                  {lead.nextActionDate || '-'}
+                                </span>
+                              </div>
                             </div>
                             <p className="text-[11px] text-slate-200 leading-snug line-clamp-2">
                               {lead.nextAction}
@@ -822,6 +1412,7 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
                 </div>
               );
             })}
+            </div>
           </div>
         )}
 

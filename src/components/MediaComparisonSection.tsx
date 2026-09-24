@@ -22,12 +22,15 @@ import {
   Download,
   FileSpreadsheet,
   FileCode,
-  ChevronDown
+  ChevronDown,
+  FileText,
+  Printer
 } from 'lucide-react';
 import { MediaSpot } from '../types/ooh';
 import { formatCompactNumber, formatIDR } from '../utils/formatters';
 import { formatImageUrl } from '../utils/imageUtils';
 import { addNotification } from '../services/storageService';
+import { DirectComparisonSpecTable } from './DirectComparisonSpecTable';
 
 interface MediaComparisonSectionProps {
   spots: MediaSpot[];
@@ -59,6 +62,7 @@ export const MediaComparisonSection: React.FC<MediaComparisonSectionProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'SPEC_SHEET' | 'FULL_METRICS'>('SPEC_SHEET');
 
   // Selected MediaSpot objects
   const selectedSpots = useMemo(() => {
@@ -548,6 +552,8 @@ export const MediaComparisonSection: React.FC<MediaComparisonSectionProps> = ({
 
   return (
     <div id="media-comparison-section" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div id="direct-comparison-table-section" />
+      <div id="direct-comparison-table" />
       {/* Section Header */}
       <div className="p-5 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-emerald-50/30">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -755,6 +761,50 @@ export const MediaComparisonSection: React.FC<MediaComparisonSectionProps> = ({
             </button>
           )}
         </div>
+
+        {/* View Mode Tabs: Direct Comparison Table (Procurement Technical Spec Sheet) vs Comprehensive Marketing Analytics */}
+        <div className="mt-4 pt-3 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setViewMode('SPEC_SHEET')}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === 'SPEC_SHEET'
+                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Direct Comparison Table (Spek Teknis Pengadaan)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('FULL_METRICS')}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === 'FULL_METRICS'
+                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Analisis Performa Lengkap & ROI</span>
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-500 font-medium">
+            {viewMode === 'SPEC_SHEET' ? (
+              <span className="inline-flex items-center gap-1.5 text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Lembar Spek Teknis: Dimensi, Traffic & Unit Pricing
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-blue-800 font-semibold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                <Scale className="w-3.5 h-3.5 text-blue-600" />
+                Analisis Komparatif Performa CPM & Audiens
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Comparison Content */}
@@ -786,8 +836,19 @@ export const MediaComparisonSection: React.FC<MediaComparisonSectionProps> = ({
             </button>
           </div>
         </div>
+      ) : viewMode === 'SPEC_SHEET' ? (
+        <div className="p-4 sm:p-5">
+          <DirectComparisonSpecTable
+            selectedSpots={selectedSpots}
+            benchmarks={benchmarks}
+            onSelectSpot={onSelectSpot}
+            onOpenPicker={handleOpenPicker}
+            onRemoveSpot={handleRemoveSpot}
+          />
+        </div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+          <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[700px]">
             {/* Table Header: Spot Profiles */}
             <thead>
@@ -1414,10 +1475,8 @@ export const MediaComparisonSection: React.FC<MediaComparisonSectionProps> = ({
             </tbody>
           </table>
         </div>
-      )}
 
-      {/* Comparison Summary Card / Takeaways */}
-      {selectedSpots.length >= 2 && (
+        {/* Comparison Summary Card / Takeaways */}
         <div className="p-5 border-t border-slate-100 bg-slate-50/60">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="w-4 h-4 text-emerald-600" />
@@ -1526,7 +1585,8 @@ export const MediaComparisonSection: React.FC<MediaComparisonSectionProps> = ({
             </div>
           </div>
         </div>
-      )}
+      </>
+    )}
 
       {/* Spot Selector Modal / Dialog */}
       {isPickerOpen && (

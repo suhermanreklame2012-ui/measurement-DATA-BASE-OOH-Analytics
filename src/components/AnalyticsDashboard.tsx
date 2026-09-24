@@ -32,6 +32,8 @@ import {
   Loader2
 } from 'lucide-react';
 import { MediaComparisonSection } from './MediaComparisonSection';
+import { CityCpmComparisonSection } from './CityCpmComparisonSection';
+import { ImpressionGrowthTimelineChart } from './ImpressionGrowthTimelineChart';
 import { AiMarketInsightsPanel } from './AiMarketInsightsPanel';
 import { ChartExportFloatingMenu } from './ChartExportFloatingMenu';
 import { exportChartElementAsPng } from '../utils/chartExport';
@@ -280,11 +282,27 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 </button>
               )}
               <a
-                href="#media-comparison-section"
+                href="#chart-card-daily-impressions-growth"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 text-xs font-semibold transition-colors"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Pertumbuhan Impresi Harian</span>
+              </a>
+              <a
+                href="#city-cpm-comparison-section"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-400/40 text-xs font-semibold transition-colors"
+              >
+                <Scale className="w-3.5 h-3.5 text-blue-400" />
+                <span>Komparasi CPM Antar Kota</span>
+              </a>
+              <a
+                id="link-nav-direct-comparison-table"
+                data-testid="link-nav-direct-comparison-table"
+                href="#direct-comparison-table-section"
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition-colors"
               >
-                <Scale className="w-3.5 h-3.5" />
-                <span>Bandingkan 2-3 Titik Media</span>
+                <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Direct Comparison Table (Spek Teknis)</span>
               </a>
             </div>
           </div>
@@ -322,6 +340,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
       {/* Charts Presentation Suite: Wrap all primary and secondary analytics for full presentation export */}
       <div id="charts-presentation-suite" data-testid="charts-presentation-suite" className="space-y-6">
+
+        {/* Growth in Total Daily Impressions Over Time & Seasonal Surges Line Chart */}
+        <ImpressionGrowthTimelineChart
+          spots={spots}
+          activeRegion={activeRegion}
+          onSelectSpot={onSelectSpot}
+        />
 
         {/* Primary Analytics Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -583,6 +608,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       </div>
       {/* End of Charts Presentation Suite */}
       </div>
+
+      {/* City-to-City CPM & Efficiency Comparison Section */}
+      <CityCpmComparisonSection
+        spots={spots}
+        onSelectSpot={onSelectSpot}
+      />
 
       {/* Head-to-Head 2-3 Media Spots Comparison Table Section */}
       <MediaComparisonSection 

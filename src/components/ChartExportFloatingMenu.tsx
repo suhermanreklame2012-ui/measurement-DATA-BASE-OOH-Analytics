@@ -39,6 +39,15 @@ export const ChartExportFloatingMenu: React.FC<ChartExportFloatingMenuProps> = (
 
   const exportOptions: ChartExportItem[] = [
     {
+      id: 'revenue-forecast',
+      elementId: 'chart-card-revenue-forecasting-suite',
+      filename: `Suherman-OOH-Revenue-Forecast-${activeRegion}`,
+      title: 'Proyeksi Pendapatan & Pertumbuhan Omzet',
+      subtitle: 'Composed Chart trajektori arus kas & potensi okupansi',
+      type: 'presentation',
+      badge: 'Eksekutif'
+    },
+    {
       id: 'full-suite',
       elementId: 'charts-presentation-suite',
       filename: `OOH-Jabar-Presentation-Suite-${activeRegion}`,

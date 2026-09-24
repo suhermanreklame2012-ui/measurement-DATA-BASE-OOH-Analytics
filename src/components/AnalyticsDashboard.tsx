@@ -35,6 +35,7 @@ import { MediaComparisonSection } from './MediaComparisonSection';
 import { CityCpmComparisonSection } from './CityCpmComparisonSection';
 import { ImpressionGrowthTimelineChart } from './ImpressionGrowthTimelineChart';
 import { AiMarketInsightsPanel } from './AiMarketInsightsPanel';
+import { RevenueForecastingWidget } from './RevenueForecastingWidget';
 import { ChartExportFloatingMenu } from './ChartExportFloatingMenu';
 import { exportChartElementAsPng } from '../utils/chartExport';
 import { 
@@ -255,6 +256,16 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               </button>
 
               <a
+                id="link-nav-revenue-forecasting"
+                data-testid="link-nav-revenue-forecasting"
+                href="#revenue-forecasting-widget"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 text-xs font-semibold transition-colors"
+              >
+                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Revenue Forecasting & Growth</span>
+              </a>
+
+              <a
                 href="#ai-market-insights-panel"
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-400/40 text-xs font-semibold transition-colors"
               >
@@ -331,6 +342,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Revenue Forecasting & Growth Opportunities Widget */}
+      <RevenueForecastingWidget
+        spots={spots}
+        activeRegion={activeRegion}
+        onSelectSpot={onSelectSpot}
+        onNavigateToPlanner={onNavigateToPlanner}
+        onNavigateToRoi={onNavigateToRoi}
+      />
 
       {/* AI Market Insights Panel: Automated Weekly Traffic Trend Analysis & High-Growth Recommendations */}
       <AiMarketInsightsPanel 

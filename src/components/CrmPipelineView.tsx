@@ -63,6 +63,7 @@ import {
 import { formatIDR, formatCompactNumber } from '../utils/formatters';
 import { MediaSpot, ClientContact } from '../types/ooh';
 import { getStoredClients } from '../services/clientService';
+import { CrmPipelineHealthCard } from './CrmPipelineHealthCard';
 
 interface CrmPipelineViewProps {
   allSpots?: MediaSpot[];
@@ -1133,6 +1134,13 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
         {/* VIEW 1: PIPELINE KANBAN (02 Pipeline lebih mudah dijalankan) */}
         {activeTab === 'pipeline' && (
           <div className="space-y-4">
+            {/* Top Summary Card: Lead counts grouped by status & Immediate Pipeline Health Snapshot */}
+            <CrmPipelineHealthCard
+              leads={leads}
+              activeFilterStage={filterStage}
+              onSelectStageFilter={setFilterStage}
+            />
+
             {/* Empty state if no leads match active filters */}
             {filteredLeads.length === 0 && (
               <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-2.5">

@@ -503,21 +503,30 @@ ${savingsNote}
               )}
             </button>
 
-            {/* Scan Spot QR Code on Mobile Device */}
+            {/* Generate & View QR Code (Header Button) */}
             <button
-              id="btn-toggle-mobile-qr-header"
-              data-testid="btn-toggle-mobile-qr-header"
+              id="btn-generate-qr-code-header"
+              data-testid="btn-generate-qr-code-header"
               type="button"
-              onClick={() => setShowQrCode(!showQrCode)}
+              onClick={() => {
+                const nextState = !showQrCode;
+                setShowQrCode(nextState);
+                if (nextState) {
+                  setTimeout(() => {
+                    const el = document.getElementById('field-agent-qr-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }, 50);
+                }
+              }}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 showQrCode
                   ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400'
                   : 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700'
               }`}
-              title="Tampilkan QR Code unik untuk dipindai calon klien di ponsel pintar mereka"
+              title="Generate QR Code untuk Deep-Link langsung ke detail media di smartphone agen lapangan"
             >
-              <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">{showQrCode ? 'Tutup QR' : '📱 Buka di HP (QR)'}</span>
+              <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">{showQrCode ? 'Tutup QR' : 'QR Code'}</span>
             </button>
 
             <button
@@ -562,6 +571,25 @@ ${savingsNote}
               <MapPin className="w-3 h-3 text-emerald-400" />
               <span>{spot.city} (Kec. {spot.district})</span>
             </span>
+
+            {/* Quick QR Code Generator Badge */}
+            <button
+              type="button"
+              id="badge-generate-qr-subheader"
+              data-testid="badge-generate-qr-subheader"
+              onClick={() => {
+                setShowQrCode(true);
+                setTimeout(() => {
+                  const el = document.getElementById('field-agent-qr-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }, 50);
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-emerald-500/40 bg-emerald-950/70 text-emerald-300 hover:bg-emerald-900/60 transition-colors cursor-pointer"
+              title="Generate QR Code Deep-Link titik ini untuk perangkat seluler lapangan"
+            >
+              <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+              <span>📱 QR Deep-Link</span>
+            </button>
 
             {/* Availability Demand & Queue Badge */}
             {spotAlerts.length > 0 ? (
@@ -681,41 +709,53 @@ ${savingsNote}
             onOpenEdit={onEditSpot ? () => onEditSpot(spot) : undefined}
           />
 
-          {/* Field Agent QR Code Generator Section (Unique Spot Mobile Pass) */}
-          {showQrCode ? (
-            <div className="animate-in fade-in slide-in-from-top-2 duration-150">
-              <SpotQrCodeGenerator spot={spot} onClose={() => setShowQrCode(false)} />
-            </div>
-          ) : (
-            <div 
-              id="card-open-mobile-qr-trigger"
-              data-testid="card-open-mobile-qr-trigger"
-              onClick={() => setShowQrCode(true)}
-              className="p-3.5 bg-gradient-to-r from-emerald-950/15 via-slate-900/10 to-indigo-950/15 border border-emerald-300 hover:border-emerald-500 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer transition-all group shadow-2xs hover:shadow-xs"
-              title="Buat QR Code unik untuk dipindai calon klien agar langsung membuka detail media ini di smartphone mereka"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-indigo-600 text-white flex items-center justify-center group-hover:scale-105 transition-transform shrink-0 shadow-sm">
-                  <Smartphone className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <div className="font-bold text-slate-900 flex items-center gap-2">
-                    <span>📱 Pindai QR Code di Smartphone Calon Klien</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300">
-                      Mobile Media Pass
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-600 mt-0.5">
-                    Buat QR Code unik titik <strong className="text-slate-900">{spot.name}</strong>. Calon klien cukup mengarahkan kamera ponsel untuk langsung membaca spesifikasi, estimasi impresi harian, dan tarif resmi tanpa perlu instal aplikasi.
-                  </div>
-                </div>
+          {/* Field Agent QR Code Generator Section (Unique Spot Mobile Pass & Deep-Link) */}
+          <div id="field-agent-qr-section" className="scroll-mt-4">
+            {showQrCode ? (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-150">
+                <SpotQrCodeGenerator spot={spot} onClose={() => setShowQrCode(false)} />
               </div>
-              <span className="text-xs font-bold text-emerald-700 group-hover:text-emerald-800 flex items-center gap-1 shrink-0 bg-white px-3 py-1.5 rounded-lg border border-emerald-200 group-hover:border-emerald-300 shadow-2xs">
-                <span>Tampilkan QR</span>
-                <span className="group-hover:translate-x-0.5 transition-transform">→</span>
-              </span>
-            </div>
-          )}
+            ) : (
+              <div 
+                id="card-open-mobile-qr-trigger"
+                data-testid="card-open-mobile-qr-trigger"
+                onClick={() => setShowQrCode(true)}
+                className="p-3.5 bg-gradient-to-r from-emerald-950/15 via-slate-900/10 to-indigo-950/15 border border-emerald-300 hover:border-emerald-500 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer transition-all group shadow-2xs hover:shadow-xs"
+                title="Buat QR Code unik untuk dipindai agen lapangan atau calon klien agar langsung membuka detail media ini di smartphone mereka"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-indigo-600 text-white flex items-center justify-center group-hover:scale-105 transition-transform shrink-0 shadow-sm">
+                    <QrCode className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 flex items-center gap-2">
+                      <span>📱 QR Code Deep-Link Generator (Akses Cepat Lapangan)</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300">
+                        Deep-Link Aktif
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-600 mt-0.5">
+                      Generate QR Code unik titik <strong className="text-slate-900">{spot.name}</strong>. Saat dipindai kamera smartphone oleh agen lapangan atau calon pengiklan, ponsel akan langsung membuka halaman rincian spesifikasi lengkap, foto konstruksi, dan tarif sewa tanpa perlu login atau instal aplikasi.
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  id="btn-trigger-generate-qr-card"
+                  data-testid="btn-trigger-generate-qr-card"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowQrCode(true);
+                  }}
+                  className="text-xs font-bold text-emerald-700 group-hover:text-emerald-800 flex items-center gap-1.5 shrink-0 bg-white px-3.5 py-2 rounded-lg border border-emerald-200 group-hover:border-emerald-300 shadow-2xs cursor-pointer"
+                >
+                  <QrCode className="w-4 h-4 text-emerald-600" />
+                  <span>Generate QR</span>
+                  <span className="group-hover:translate-x-0.5 transition-transform">→</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Direct Shareable Link Card */}
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs shadow-2xs">
@@ -1782,19 +1822,28 @@ ${savingsNote}
 
             {/* Unique Spot Mobile QR Code Button in Footer */}
             <button
-              id="btn-toggle-mobile-qr-footer"
-              data-testid="btn-toggle-mobile-qr-footer"
+              id="btn-generate-qr-code-footer"
+              data-testid="btn-generate-qr-code-footer"
               type="button"
-              onClick={() => setShowQrCode(!showQrCode)}
+              onClick={() => {
+                const nextState = !showQrCode;
+                setShowQrCode(nextState);
+                if (nextState) {
+                  setTimeout(() => {
+                    const el = document.getElementById('field-agent-qr-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }, 50);
+                }
+              }}
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 font-semibold rounded-lg text-xs transition-all cursor-pointer ${
                 showQrCode
                   ? 'bg-slate-900 text-emerald-400 border border-slate-700 shadow-sm ring-1 ring-emerald-500/40'
                   : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs'
               }`}
-              title="Tampilkan QR Code unik untuk dipindai calon klien di ponsel pintar mereka"
+              title="Generate QR Code Deep-Link titik reklame ini untuk dipindai di ponsel pintar lapangan"
             >
-              <Smartphone className="w-4 h-4 text-emerald-600" />
-              <span>{showQrCode ? 'Tutup QR' : '📱 Scan QR di HP Klien'}</span>
+              <QrCode className="w-4 h-4 text-emerald-600" />
+              <span>{showQrCode ? 'Tutup QR' : '📱 Generate QR Code'}</span>
             </button>
 
             {/* Availability Alert Button in Footer */}

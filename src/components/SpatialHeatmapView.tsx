@@ -19,7 +19,12 @@ import {
   Network,
   Maximize2,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Satellite,
+  Map as MapIcon,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw
 } from 'lucide-react';
 
 interface SpatialHeatmapViewProps {
@@ -161,6 +166,7 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
   });
   const [colorizeMarkersWithPalette, setColorizeMarkersWithPalette] = useState<boolean>(true);
   const [googleMapType, setGoogleMapType] = useState<'roadmap' | 'satellite' | 'traffic' | 'terrain'>('roadmap');
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState<boolean>(false);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
 
   // Helper to determine spot tier and styling for OTS Density
@@ -988,6 +994,25 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
   }, [spots]);
 
+  // Reset Map View: Re-center and zoom to fit all currently filtered spots within viewport
+  const resetMapView = useCallback(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (spots.length > 0) {
+      const bounds = L.latLngBounds(spots.map((s) => [s.coordinates.lat, s.coordinates.lng]));
+      map.fitBounds(bounds, {
+        padding: [50, 50],
+        maxZoom: 15,
+        animate: true,
+        duration: 0.8
+      });
+    } else {
+      // Default fallback when no spots are filtered: center West Java / Bandung
+      map.setView([-6.9175, 107.6191], 12, { animate: true });
+    }
+  }, [spots]);
+
   // Quick Fly-To Locations
   const flyTo = (lat: number, lng: number, zoom: number) => {
     if (mapInstanceRef.current) {
@@ -1008,7 +1033,7 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
         className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10 bg-white/95 backdrop-blur-md rounded-xl p-3 sm:p-3.5 shadow-xl border border-slate-200/90 w-[calc(100%-1.5rem)] sm:w-80 text-xs transition-all max-h-[85%] overflow-y-auto"
       >
         {/* Header with Title & Main Overlay Toggle */}
-        <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
           <div className="flex items-center gap-2 font-bold text-slate-800">
             <div className={`p-1.5 rounded-lg ${heatmapLayerMode === 'ots_density' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
               <Layers className="w-4 h-4" />
@@ -1019,21 +1044,37 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
             </div>
           </div>
 
-          <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-semibold text-slate-700">
-            <input
-              id="toggle-heatmap-layer"
-              type="checkbox"
-              checked={showHeatmap}
-              onChange={(e) => setShowHeatmap(e.target.checked)}
-              className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
-            />
-            <span className={showHeatmap ? 'text-emerald-700' : 'text-slate-400'}>
-              {showHeatmap ? 'Aktif' : 'Nonaktif'}
-            </span>
-          </label>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-semibold text-slate-700">
+              <input
+                id="toggle-heatmap-layer"
+                type="checkbox"
+                checked={showHeatmap}
+                onChange={(e) => setShowHeatmap(e.target.checked)}
+                className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
+              />
+              <span className={showHeatmap ? 'text-emerald-700' : 'text-slate-400'}>
+                {showHeatmap ? 'Aktif' : 'Nonaktif'}
+              </span>
+            </label>
+
+            <button
+              type="button"
+              id="btn-collapse-heatmap-panel"
+              data-testid="btn-collapse-heatmap-panel"
+              onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+              className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title={isPanelCollapsed ? "Buka panel kontrol visualisasi spasial" : "Ciutkan panel untuk melihat peta penuh"}
+              aria-label={isPanelCollapsed ? "Buka panel kontrol" : "Ciutkan panel kontrol"}
+            >
+              {isPanelCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
 
-        {/* Heatmap Layer Mode Selector: OTS Density vs Price Intensity */}
+        {!isPanelCollapsed && (
+          <>
+            {/* Heatmap Layer Mode Selector: OTS Density vs Price Intensity */}
         <div className="space-y-1.5 mb-3">
           <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
             <span>Mode Visualisasi Marker:</span>
@@ -1233,6 +1274,8 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
             })}
           </div>
         </div>
+      </>
+    )}
 
       </div>
 
@@ -1290,9 +1333,21 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
           </button>
         </div>
 
-        {/* Quick Fly-To Navigation Pills */}
+        {/* Quick Fly-To Navigation Pills & Reset Map View */}
         <div className="hidden md:flex items-center gap-1 bg-white/90 backdrop-blur-md rounded-xl p-1.5 shadow-md border border-slate-200/80 text-xs">
-          <span className="text-[10px] text-slate-400 font-semibold px-2 flex items-center gap-1">
+          <button
+            id="btn-reset-map-view-top"
+            data-testid="btn-reset-map-view-top"
+            type="button"
+            onClick={resetMapView}
+            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] transition-all flex items-center gap-1.5 border border-emerald-300 shadow-2xs cursor-pointer active:scale-95"
+            title={`Reset Map View: Pusatkan dan sesuaikan zoom peta ke seluruh ${spots.length} titik reklame`}
+          >
+            <RotateCcw className="w-3 h-3 text-emerald-600" />
+            <span>Reset Tampilan ({spots.length})</span>
+          </button>
+
+          <span className="text-[10px] text-slate-400 font-semibold px-1.5 flex items-center gap-1 border-l border-slate-200 pl-2">
             <Navigation className="w-3 h-3 text-emerald-600" />
             Fokus:
           </span>
@@ -1358,6 +1413,107 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
             </>
           )}
         </p>
+      </div>
+
+      {/* Floating Action Buttons (FABs): Satellite Toggle & Reset Map View */}
+      <div 
+        className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-20 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
+      >
+        {/* FAB 1: Toggle Standard Map Mode & Satellite View */}
+        <button
+          id="fab-toggle-satellite-view"
+          data-testid="fab-toggle-satellite-view"
+          type="button"
+          onClick={() => {
+            setGoogleMapType((prev) => (prev === 'satellite' ? 'roadmap' : 'satellite'));
+          }}
+          className={`group flex items-center gap-2.5 p-1.5 sm:px-3.5 sm:py-2 rounded-2xl shadow-2xl transition-all duration-300 active:scale-95 cursor-pointer backdrop-blur-md border ${
+            googleMapType === 'satellite'
+              ? 'bg-slate-900/95 hover:bg-slate-950 text-white border-emerald-500/60 shadow-emerald-950/40 ring-2 ring-emerald-500/30'
+              : 'bg-white/95 hover:bg-white text-slate-800 border-slate-200/90 shadow-slate-900/20 hover:border-slate-300'
+          }`}
+          title={
+            googleMapType === 'satellite'
+              ? 'Beralih ke Tampilan Peta Standar Google Maps (Roadmap)'
+              : 'Beralih ke Tampilan Citra Satelit Google Maps (Satellite Hybrid)'
+          }
+          aria-label={
+            googleMapType === 'satellite'
+              ? 'Beralih ke mode peta standar'
+              : 'Beralih ke mode citra satelit'
+          }
+        >
+          {/* Visual Mini Thumbnail Box */}
+          <div className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-inner transition-transform group-hover:scale-105 shrink-0 border ${
+            googleMapType === 'satellite'
+              ? 'bg-gradient-to-br from-emerald-100 via-slate-100 to-amber-50 border-emerald-300/80 text-emerald-700'
+              : 'bg-gradient-to-br from-slate-900 via-sky-950 to-indigo-950 border-slate-700 text-sky-400'
+          }`}>
+            {googleMapType === 'satellite' ? (
+              <MapIcon className="w-5 h-5 text-emerald-600 drop-shadow-xs" />
+            ) : (
+              <Satellite className="w-5 h-5 text-sky-300 drop-shadow-xs animate-pulse" />
+            )}
+            
+            {/* Corner Status Dot */}
+            <span className={`absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full border border-white ${
+              googleMapType === 'satellite' ? 'bg-emerald-500' : 'bg-sky-400'
+            }`} />
+          </div>
+
+          {/* Text Content */}
+          <div className="text-left pr-1.5 select-none">
+            <div className="flex items-center gap-1.5">
+              <span className={`text-xs font-extrabold tracking-tight ${
+                googleMapType === 'satellite' ? 'text-white' : 'text-slate-900'
+              }`}>
+                {googleMapType === 'satellite' ? 'Peta Standar' : 'Citra Satelit'}
+              </span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
+                googleMapType === 'satellite'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+              }`}>
+                {googleMapType === 'satellite' ? 'Satelit On' : 'Standar On'}
+              </span>
+            </div>
+            <p className={`text-[10px] leading-tight mt-0.5 ${
+              googleMapType === 'satellite' ? 'text-slate-400' : 'text-slate-500'
+            }`}>
+              {googleMapType === 'satellite'
+                ? 'Klik untuk kembali ke peta jalan'
+                : 'Klik untuk lihat citra satelit'}
+            </p>
+          </div>
+        </button>
+
+        {/* FAB 2: Reset Map View (Re-centers and zooms to fit all filtered spots) */}
+        <button
+          id="btn-reset-map-view"
+          data-testid="btn-reset-map-view"
+          type="button"
+          onClick={resetMapView}
+          className="group flex items-center gap-2 px-3.5 py-2 sm:py-2.5 rounded-2xl shadow-xl transition-all duration-300 active:scale-95 cursor-pointer backdrop-blur-md bg-white/95 hover:bg-white text-slate-800 border border-slate-200/90 shadow-slate-900/15 hover:border-emerald-300 hover:text-emerald-900"
+          title={`Reset Map View: Pusatkan dan sesuaikan zoom peta ke seluruh ${spots.length} titik reklame yang terfilter`}
+          aria-label="Pusatkan ulang dan zoom peta ke seluruh titik"
+        >
+          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0 shadow-2xs">
+            <RotateCcw className="w-4 h-4 transition-transform group-hover:-rotate-90 duration-300" />
+          </div>
+          <div className="text-left select-none pr-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold tracking-tight text-slate-900 group-hover:text-emerald-900">
+                Reset Tampilan
+              </span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
+                {spots.length}
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-500 group-hover:text-slate-600 leading-tight">
+              Pusatkan ke semua titik
+            </p>
+          </div>
+        </button>
       </div>
 
     </div>

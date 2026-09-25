@@ -217,22 +217,41 @@ export default function App() {
     };
   }, []);
 
-  // Deep-linking: Automatically open spot details when '?spot=<id>' is present in URL query
+  // Deep-linking: Automatically open spot details when '?spot=<id>' is present in URL query or hash
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const spotParam = params.get('spot');
-      if (spotParam && spots.length > 0) {
-        const found = spots.find(
-          (s) => s.id.toLowerCase() === spotParam.toLowerCase() || s.no.toString() === spotParam
-        );
-        if (found) {
-          setSelectedSpot(found);
+    const handleDeepLink = () => {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        let spotParam = searchParams.get('spot');
+
+        if (!spotParam && window.location.hash) {
+          const match = window.location.hash.match(/[?&#]spot=([^&#]+)/);
+          if (match) {
+            spotParam = decodeURIComponent(match[1]);
+          }
         }
+
+        if (spotParam && spots.length > 0) {
+          const found = spots.find(
+            (s) => s.id.toLowerCase() === spotParam!.toLowerCase() || s.no.toString() === spotParam
+          );
+          if (found) {
+            setSelectedSpot(found);
+          }
+        }
+      } catch (err) {
+        console.warn('Safe fallback for deep-link check:', err);
       }
-    } catch {
-      // Safe fallback for iframe URL constraints
-    }
+    };
+
+    handleDeepLink();
+    window.addEventListener('popstate', handleDeepLink);
+    window.addEventListener('hashchange', handleDeepLink);
+
+    return () => {
+      window.removeEventListener('popstate', handleDeepLink);
+      window.removeEventListener('hashchange', handleDeepLink);
+    };
   }, [spots]);
 
   // Save spots to local storage on modification

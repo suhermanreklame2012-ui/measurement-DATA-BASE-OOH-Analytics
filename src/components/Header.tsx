@@ -164,17 +164,17 @@ export const Header: React.FC<HeaderProps> = ({
                 setActiveTab('crm');
                 if (onOpenCrm) onOpenCrm();
               }}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm cursor-pointer select-none ${
                 activeTab === 'crm'
                   ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-500/40 shadow-emerald-950/40'
                   : 'bg-gradient-to-r from-emerald-950/90 via-slate-800 to-slate-800 hover:from-emerald-900 hover:to-slate-700 text-emerald-200 hover:text-white border-emerald-500/50'
               }`}
               title="Pipeline CRM Penawaran (Arah Prospek, PIC, Nilai Peluang & Tindak Lanjut)"
             >
-              <Briefcase className="w-4 h-4 text-emerald-400" />
-              <span className="tracking-tight font-bold">Pipeline CRM</span>
-              <span className="hidden sm:inline-flex px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono border border-emerald-500/30 font-bold">
-                Sales CRM
+              <Briefcase className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="tracking-tight font-bold">
+                <span className="sm:hidden">CRM</span>
+                <span className="hidden sm:inline">Pipeline CRM</span>
               </span>
             </button>
 
@@ -184,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 id="master-database-menu-btn"
                 onClick={() => setIsMasterMenuOpen(!isMasterMenuOpen)}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm ${
+                className={`inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm select-none ${
                   isMasterMenuOpen 
                     ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-500/40' 
                     : 'bg-gradient-to-r from-emerald-950 via-slate-800 to-slate-800 hover:from-emerald-900 hover:to-slate-700 text-emerald-200 hover:text-white border-emerald-500/50'
@@ -192,10 +192,10 @@ export const Header: React.FC<HeaderProps> = ({
                 aria-expanded={isMasterMenuOpen}
                 title="Folder Menu Master Data Base (Tambah Titik, Integrasi, Ekspor, AI & Keamanan)"
               >
-                <FolderArchive className="w-4 h-4 text-emerald-400" />
-                <span className="tracking-tight">Master Data Base</span>
-                <span className="hidden sm:inline-flex px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono border border-emerald-500/30">
-                  Folder
+                <FolderArchive className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span className="tracking-tight">
+                  <span className="sm:hidden">Master</span>
+                  <span className="hidden sm:inline">Master Data Base</span>
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isMasterMenuOpen ? 'rotate-180 text-white' : 'text-emerald-400'}`} />
               </button>
@@ -504,100 +504,105 @@ export const Header: React.FC<HeaderProps> = ({
 
         </div>
 
-        {/* Navigation Tabs Bar */}
-        <div className="flex items-center justify-between border-t border-slate-800/80 pt-1 pb-2">
-          <nav className="flex space-x-1" aria-label="Tabs">
+        {/* Navigation Tabs Bar - Horizontally scrollable on mobile */}
+        <div className="flex items-center justify-between border-t border-slate-800/80 pt-1 pb-1.5 overflow-hidden">
+          <nav 
+            className="flex items-center space-x-1 sm:space-x-1.5 overflow-x-auto scrollbar-none py-0.5 max-w-full" 
+            aria-label="Navigasi Fitur Utama"
+            style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
+          >
             <button
               onClick={() => setActiveTab('map')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors select-none ${
                 activeTab === 'map'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
               }`}
             >
-              <MapPin className="w-3.5 h-3.5" />
-              Heatmap Spasial
+              <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+              <span><span className="sm:hidden">Heatmap</span><span className="hidden sm:inline">Heatmap Spasial</span></span>
             </button>
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors select-none ${
                 activeTab === 'analytics'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
               }`}
             >
-              <Activity className="w-3.5 h-3.5" />
-              Tren Real-Time
+              <Activity className="w-3.5 h-3.5 flex-shrink-0" />
+              <span><span className="sm:hidden">Tren</span><span className="hidden sm:inline">Tren Real-Time</span></span>
             </button>
             <button
               onClick={() => setActiveTab('table')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors select-none ${
                 activeTab === 'table'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
               }`}
             >
-              <Layers className="w-3.5 h-3.5" />
-              Database Media ({totalSpots})
+              <Layers className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Database Media</span>
+              <span className="text-[11px] opacity-80">({totalSpots})</span>
             </button>
             <button
               onClick={() => setActiveTab('planner')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors select-none ${
                 activeTab === 'planner'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
               }`}
             >
-              <Calculator className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Strategic Media Planner</span>
-              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+              <Calculator className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+              <span><span className="sm:hidden">Planner</span><span className="hidden sm:inline">Strategic Planner</span></span>
+              <span className={`hidden md:inline-block px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                 activeTab === 'planner' 
                   ? 'bg-white/20 text-white' 
                   : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
               }`}>
-                AI Budget
+                AI
               </span>
             </button>
             <button
               onClick={() => setActiveTab('roi')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors select-none ${
                 activeTab === 'roi'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
               }`}
             >
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Estimated ROI</span>
-              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <span><span className="sm:hidden">ROI</span><span className="hidden sm:inline">Estimated ROI</span></span>
+              <span className={`hidden md:inline-block px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                 activeTab === 'roi' 
                   ? 'bg-white/20 text-white' 
                   : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
               }`}>
-                CTR Model
+                CTR
               </span>
             </button>
             <button
               onClick={() => setActiveTab('crm')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors select-none cursor-pointer ${
                 activeTab === 'crm'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
               }`}
             >
-              <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Pipeline CRM Penawaran</span>
-              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
+              <Briefcase className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <span><span className="sm:hidden">CRM</span><span className="hidden sm:inline">Pipeline CRM</span></span>
+              <span className={`hidden md:inline-block px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
                 activeTab === 'crm' 
                   ? 'bg-white/20 text-white' 
                   : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
               }`}>
-                Sales CRM
+                Sales
               </span>
             </button>
           </nav>
 
-          <div className="text-[11px] text-slate-400 hidden md:block">
-            Periode: <span className="text-slate-200 font-medium">Bulan Berjalan 2026</span>
+          <div className="text-[11px] text-slate-400 hidden lg:block whitespace-nowrap pl-4">
+            Wilayah: <span className="text-slate-200 font-medium">Bandung &amp; Jawa Barat</span>
           </div>
         </div>
 

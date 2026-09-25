@@ -309,36 +309,39 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             
             {/* Category Segmented Control */}
-            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium border border-slate-200">
+            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium border border-slate-200 flex-shrink-0">
               <button
                 onClick={() => onFilterChange({ ...filter, category: 'ALL' })}
-                className={`px-2.5 py-1.5 rounded-md transition-colors ${
+                className={`px-2 sm:px-2.5 py-1.5 rounded-md transition-colors select-none ${
                   filter.category === 'ALL'
                     ? 'bg-white text-slate-900 shadow-xs font-semibold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Semua Format
+                <span className="sm:hidden">Semua</span>
+                <span className="hidden sm:inline">Semua Format</span>
               </button>
               <button
                 onClick={() => onFilterChange({ ...filter, category: 'OOH_STATIC' })}
-                className={`px-2.5 py-1.5 rounded-md transition-colors ${
+                className={`px-2 sm:px-2.5 py-1.5 rounded-md transition-colors select-none ${
                   filter.category === 'OOH_STATIC'
                     ? 'bg-white text-emerald-700 shadow-xs font-semibold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                OOH Statis (Billboard/Bando/JPO)
+                <span className="sm:hidden">OOH Statis</span>
+                <span className="hidden sm:inline">OOH Statis (Billboard/JPO)</span>
               </button>
               <button
                 onClick={() => onFilterChange({ ...filter, category: 'DOOH_DIGITAL' })}
-                className={`px-2.5 py-1.5 rounded-md transition-colors ${
+                className={`px-2 sm:px-2.5 py-1.5 rounded-md transition-colors select-none ${
                   filter.category === 'DOOH_DIGITAL'
                     ? 'bg-white text-purple-700 shadow-xs font-semibold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                DOOH Videotron
+                <span className="sm:hidden">DOOH</span>
+                <span className="hidden sm:inline">DOOH Videotron</span>
               </button>
             </div>
 
@@ -416,14 +419,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <div
           id="quick-filters-bar"
           data-testid="quick-filters-bar"
-          className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-2 flex-wrap text-xs"
+          className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-2 overflow-x-auto scrollbar-none flex-nowrap sm:flex-wrap text-xs pb-1 sm:pb-0"
+          style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
         >
           <span className="text-slate-400 text-[11px] font-semibold flex items-center gap-1.5 shrink-0 mr-0.5">
             <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
             <span>Quick Filters:</span>
           </span>
 
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-nowrap sm:flex-wrap shrink-0">
             {/* Quick Filter 1: Available Only */}
             <button
               id="quick-filter-available"

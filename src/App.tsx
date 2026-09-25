@@ -42,6 +42,7 @@ import { DEFAULT_MIN_BOUND, DEFAULT_MAX_BOUND } from './components/PriceRangeFil
 import { CheckCircle2, RefreshCw, X, AlertCircle } from 'lucide-react';
 import { listenAuthState } from './services/emailAuthService';
 import { CrmPipelineView } from './components/CrmPipelineView';
+import { MobileBottomNav } from './components/MobileBottomNav';
 
 const SUPERADMIN_EMAIL = 'suherman.reklame2012@gmail.com';
 
@@ -460,8 +461,8 @@ export default function App() {
         />
       )}
 
-      {/* Main Content Body */}
-      <main className="flex-1 pb-16">
+      {/* Main Content Body with responsive mobile padding */}
+      <main id="main-content" role="main" className="flex-1 pb-28 md:pb-16">
         
         {/* TAB 1: Visualisasi Heatmap Spasial */}
         {activeTab === 'map' && (
@@ -705,14 +706,14 @@ export default function App() {
       )}
 
       {/* Application Minimal Footer */}
-      <footer className="bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-4 px-4 text-center">
+      <footer role="contentinfo" className="bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-4 px-4 text-center mb-16 md:mb-0">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div>
-            Sistem Database Pengukuran Media OOH & DOOH Jawa Barat • Powered by Spatial Heatmap & Real-Time Telemetry
+            Sistem Database Pengukuran Media OOH &amp; DOOH Jawa Barat · Powered by Spatial Heatmap &amp; Real-Time Telemetry
           </div>
           <div className="flex items-center gap-3 text-[11px] text-slate-500">
             <span>Bandung, Cimahi, KBB, Garut, Sukabumi, Tasikmalaya, Subang, Ciamis</span>
-            <span>•</span>
+            <span>·</span>
             <button
               onClick={() => {
                 if (confirm('Kembalikan database ke data awal?')) {
@@ -727,6 +728,13 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Mobile Responsive Bottom Dock Navigation for Handphones */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        totalSpots={spots.length}
+      />
 
     </div>
   );

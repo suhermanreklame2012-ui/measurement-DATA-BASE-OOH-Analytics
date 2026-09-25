@@ -996,7 +996,7 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
   };
 
   return (
-    <div className="relative w-full h-[680px] bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+    <div className="relative w-full h-[520px] sm:h-[620px] lg:h-[680px] bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
       
       {/* Map Canvas */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
@@ -1005,7 +1005,7 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
       <div 
         id="heatmap-layer-control"
         data-testid="heatmap-layer-control"
-        className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-md rounded-xl p-3.5 shadow-xl border border-slate-200/90 w-80 text-xs transition-all"
+        className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10 bg-white/95 backdrop-blur-md rounded-xl p-3 sm:p-3.5 shadow-xl border border-slate-200/90 w-[calc(100%-1.5rem)] sm:w-80 text-xs transition-all max-h-[85%] overflow-y-auto"
       >
         {/* Header with Title & Main Overlay Toggle */}
         <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100">
@@ -1336,8 +1336,8 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
         </div>
       </div>
 
-      {/* Floating Bottom Card: Hotspot Spotlight */}
-      <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-10 bg-slate-900/90 backdrop-blur-md text-white rounded-xl p-3 shadow-xl border border-slate-700/80 max-w-sm text-xs">
+      {/* Floating Bottom Card: Hotspot Spotlight (Visible on sm and up to prevent map occlusion on phones) */}
+      <div className="hidden sm:block absolute bottom-4 right-4 z-10 bg-slate-900/90 backdrop-blur-md text-white rounded-xl p-3 shadow-xl border border-slate-700/80 max-w-sm text-xs">
         <div className="flex items-center justify-between mb-1.5">
           <span className="font-semibold text-emerald-400 flex items-center gap-1">
             <Sparkles className="w-3.5 h-3.5" />

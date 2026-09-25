@@ -136,3 +136,30 @@
     font-weight: 700 !important;
   }
 }
+
+/* ==========================================================================
+   Smooth Transition & Animation for Leaflet Heatmap Layer
+   ========================================================================== */
+.heatmap-transition-circle {
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              fill 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              fill-opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke-opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: heatmapPulseFadeIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes heatmapPulseFadeIn {
+  0% {
+    opacity: 0.15;
+  }
+  60% {
+    opacity: 0.88;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.leaflet-heatmap-pane {
+  transition: opacity 0.4s ease-in-out;
+}

@@ -24,7 +24,8 @@ import {
   Map as MapIcon,
   ChevronDown,
   ChevronUp,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 
 interface SpatialHeatmapViewProps {
@@ -166,7 +167,10 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
   });
   const [colorizeMarkersWithPalette, setColorizeMarkersWithPalette] = useState<boolean>(true);
   const [googleMapType, setGoogleMapType] = useState<'roadmap' | 'satellite' | 'traffic' | 'terrain'>('roadmap');
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState<boolean>(false);
+  // Default to true so Heatmap Layer panel is minimized on initial view, expanding on click
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState<boolean>(true);
+  // Heatmap layer smooth transition and loading state
+  const [isHeatmapUpdating, setIsHeatmapUpdating] = useState<boolean>(false);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
 
   // Helper to determine spot tier and styling for OTS Density
@@ -874,6 +878,15 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
       }).addTo(map);
 
       tileLayerRef.current = googleRoadmap;
+
+      // Dedicated pane for heatmap layer with smooth opacity transition
+      map.createPane('heatmapPane');
+      const heatmapPane = map.getPane('heatmapPane');
+      if (heatmapPane) {
+        heatmapPane.style.zIndex = '350';
+        heatmapPane.className += ' leaflet-heatmap-pane';
+      }
+
       heatLayerGroupRef.current = L.layerGroup().addTo(map);
       markersLayerGroupRef.current = L.layerGroup().addTo(map);
 
@@ -921,47 +934,80 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
     tileLayerRef.current = newTile;
   }, [googleMapType]);
 
-  // Update Heatmap Circles whenever spots or mode changes
+  // Update Heatmap Circles whenever spots or mode changes with smooth transition & loading animation
   useEffect(() => {
     const heatGroup = heatLayerGroupRef.current;
-    if (!heatGroup) return;
+    const map = mapInstanceRef.current;
+    if (!heatGroup || !map) return;
 
-    heatGroup.clearLayers();
-    if (!showHeatmap || spots.length === 0) return;
+    if (!showHeatmap || spots.length === 0) {
+      heatGroup.clearLayers();
+      setIsHeatmapUpdating(false);
+      return;
+    }
 
-    spots.forEach((spot) => {
-      let tier: PaletteTier;
-      if (heatmapLayerMode === 'ots_density') {
-        tier = getOtsTier(spot.dailyImpressions);
-      } else {
-        tier = getPriceTier(spot.pricing.oneMonth);
+    // Trigger loading state and soft fade out
+    setIsHeatmapUpdating(true);
+    const heatmapPane = map.getPane('heatmapPane');
+    if (heatmapPane) {
+      heatmapPane.style.opacity = '0.3';
+    }
+
+    const transitionTimer = setTimeout(() => {
+      heatGroup.clearLayers();
+
+      spots.forEach((spot) => {
+        let tier: PaletteTier;
+        if (heatmapLayerMode === 'ots_density') {
+          tier = getOtsTier(spot.dailyImpressions);
+        } else {
+          tier = getPriceTier(spot.pricing.oneMonth);
+        }
+
+        const baseRadius = 360 * tier.weightFactor;
+
+        // Outer ambient heat glow with transition class
+        const outerCircle = L.circle([spot.coordinates.lat, spot.coordinates.lng], {
+          pane: 'heatmapPane',
+          className: 'heatmap-transition-circle',
+          radius: baseRadius * 1.6,
+          color: 'transparent',
+          fillColor: tier.fillColor,
+          fillOpacity: 0.22,
+          interactive: false
+        });
+
+        // Core thermal concentration circle with transition class
+        const coreCircle = L.circle([spot.coordinates.lat, spot.coordinates.lng], {
+          pane: 'heatmapPane',
+          className: 'heatmap-transition-circle',
+          radius: baseRadius,
+          color: tier.color,
+          weight: 1.5,
+          opacity: 0.45,
+          fillColor: tier.color,
+          fillOpacity: 0.32,
+          interactive: false
+        });
+
+        heatGroup.addLayer(outerCircle);
+        heatGroup.addLayer(coreCircle);
+      });
+
+      // Restore full opacity smoothly
+      if (heatmapPane) {
+        heatmapPane.style.opacity = '1';
       }
 
-      const baseRadius = 360 * tier.weightFactor;
+      // Conclude loading animation smoothly
+      const endTimer = setTimeout(() => {
+        setIsHeatmapUpdating(false);
+      }, 350);
 
-      // Outer ambient heat glow
-      const outerCircle = L.circle([spot.coordinates.lat, spot.coordinates.lng], {
-        radius: baseRadius * 1.6,
-        color: 'transparent',
-        fillColor: tier.fillColor,
-        fillOpacity: 0.22,
-        interactive: false
-      });
+      return () => clearTimeout(endTimer);
+    }, 120);
 
-      // Core thermal concentration circle
-      const coreCircle = L.circle([spot.coordinates.lat, spot.coordinates.lng], {
-        radius: baseRadius,
-        color: tier.color,
-        weight: 1.5,
-        opacity: 0.45,
-        fillColor: tier.color,
-        fillOpacity: 0.32,
-        interactive: false
-      });
-
-      heatGroup.addLayer(outerCircle);
-      heatGroup.addLayer(coreCircle);
-    });
+    return () => clearTimeout(transitionTimer);
   }, [spots, showHeatmap, heatmapLayerMode]);
 
   // Attach moveend and zoomend listeners to trigger dynamic clustering updates
@@ -1030,21 +1076,43 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
       <div 
         id="heatmap-layer-control"
         data-testid="heatmap-layer-control"
-        className="absolute top-3 left-3 sm:top-4 sm:left-4 z-10 bg-white/95 backdrop-blur-md rounded-xl p-3 sm:p-3.5 shadow-xl border border-slate-200/90 w-[calc(100%-1.5rem)] sm:w-80 text-xs transition-all max-h-[85%] overflow-y-auto"
+        className={`absolute top-3 left-3 sm:top-4 sm:left-4 z-10 bg-white/95 backdrop-blur-md rounded-xl p-2.5 sm:p-3 shadow-xl border border-slate-200/90 text-xs transition-all max-h-[85%] overflow-y-auto ${
+          isPanelCollapsed 
+            ? 'w-auto max-w-[280px] cursor-pointer hover:bg-white hover:border-emerald-300 hover:shadow-2xl' 
+            : 'w-[calc(100%-1.5rem)] sm:w-80'
+        }`}
       >
         {/* Header with Title & Main Overlay Toggle */}
-        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+        <div 
+          onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+          className={`flex items-center justify-between transition-colors cursor-pointer select-none ${
+            isPanelCollapsed 
+              ? 'gap-3' 
+              : 'pb-2 mb-2 border-b border-slate-100 gap-2'
+          }`}
+          title={isPanelCollapsed ? "Klik untuk membuka menu Heatmap Layer & Pengaturan Spasial" : "Klik untuk menciutkan menu Heatmap Layer"}
+        >
           <div className="flex items-center gap-2 font-bold text-slate-800">
-            <div className={`p-1.5 rounded-lg ${heatmapLayerMode === 'ots_density' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
+            <div className={`p-1.5 rounded-lg shrink-0 ${heatmapLayerMode === 'ots_density' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
               <Layers className="w-4 h-4" />
             </div>
             <div>
-              <span className="block text-xs font-bold leading-none">Heatmap Layer</span>
-              <span className="text-[10px] text-slate-400 font-normal">Visualisasi Spasial OOH</span>
+              <div className="flex items-center gap-1.5">
+                <span className="block text-xs font-bold leading-none text-slate-800">Heatmap Layer</span>
+                {isHeatmapUpdating && (
+                  <span className="inline-flex items-center gap-1 text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full font-bold border border-amber-200 animate-pulse">
+                    <Loader2 className="w-2.5 h-2.5 animate-spin text-amber-600" />
+                    <span>Loading</span>
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] text-slate-400 font-normal">
+                {isPanelCollapsed ? 'Klik untuk buka menu' : 'Visualisasi Spasial OOH'}
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-semibold text-slate-700">
               <input
                 id="toggle-heatmap-layer"
@@ -1054,7 +1122,7 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
                 className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
               />
               <span className={showHeatmap ? 'text-emerald-700' : 'text-slate-400'}>
-                {showHeatmap ? 'Aktif' : 'Nonaktif'}
+                {showHeatmap ? 'Aktif' : 'Off'}
               </span>
             </label>
 
@@ -1062,12 +1130,15 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
               type="button"
               id="btn-collapse-heatmap-panel"
               data-testid="btn-collapse-heatmap-panel"
-              onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsPanelCollapsed(!isPanelCollapsed);
+              }}
               className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               title={isPanelCollapsed ? "Buka panel kontrol visualisasi spasial" : "Ciutkan panel untuk melihat peta penuh"}
               aria-label={isPanelCollapsed ? "Buka panel kontrol" : "Ciutkan panel kontrol"}
             >
-              {isPanelCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              {isPanelCollapsed ? <ChevronDown className="w-4 h-4 text-emerald-600 font-bold" /> : <ChevronUp className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -1279,8 +1350,23 @@ export const SpatialHeatmapView: React.FC<SpatialHeatmapViewProps> = ({
 
       </div>
 
-      {/* Floating Google Maps Basemap Mode Switcher */}
-      <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
+      {/* Floating Google Maps Basemap Mode Switcher & Heatmap Loading Status */}
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 flex flex-col items-end gap-2">
+        {/* Dynamic Heatmap Recalculation & Smooth Transition Indicator */}
+        {isHeatmapUpdating && (
+          <div 
+            id="heatmap-loading-overlay"
+            data-testid="heatmap-loading-overlay"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/95 text-white backdrop-blur-md shadow-xl border border-emerald-500/50 text-xs font-semibold animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-none"
+          >
+            <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+            <span className="text-emerald-300 font-bold text-[11px]">
+              {heatmapLayerMode === 'ots_density' ? 'Kalkulasi Densitas OTS...' : 'Memperbarui Intensitas Nilai...'}
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">({spots.length} titik)</span>
+          </div>
+        )}
+
         <div className="flex items-center gap-1 bg-white/95 backdrop-blur-md rounded-xl p-1.5 shadow-lg border border-slate-200/90 text-xs">
           <div className="flex items-center gap-1 px-2 text-[11px] font-bold text-slate-800 border-r border-slate-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

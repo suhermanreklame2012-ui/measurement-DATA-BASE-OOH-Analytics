@@ -169,7 +169,7 @@ export const ChartExportFloatingMenu: React.FC<ChartExportFloatingMenuProps> = (
         ref={menuRef} 
         id="analytics-chart-export-fab-container"
         data-testid="analytics-chart-export-fab-container"
-        className="fixed bottom-6 right-6 z-40 sm:bottom-8 sm:right-8 flex flex-col items-end"
+        className="fixed bottom-6 right-6 z-40 sm:bottom-8 sm:right-8 flex flex-col items-end no-print"
       >
         {/* Expanded Popup Menu */}
         {isOpen && (

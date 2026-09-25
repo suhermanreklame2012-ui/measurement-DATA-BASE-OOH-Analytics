@@ -29,7 +29,9 @@ import {
   FileText,
   CheckCircle2,
   Camera,
-  Loader2
+  Loader2,
+  Printer,
+  FileDown
 } from 'lucide-react';
 import { MediaComparisonSection } from './MediaComparisonSection';
 import { CityCpmComparisonSection } from './CityCpmComparisonSection';
@@ -38,6 +40,7 @@ import { AiMarketInsightsPanel } from './AiMarketInsightsPanel';
 import { RevenueForecastingWidget } from './RevenueForecastingWidget';
 import { ChartExportFloatingMenu } from './ChartExportFloatingMenu';
 import { exportChartElementAsPng } from '../utils/chartExport';
+import { generateAnalyticsPdfReport } from '../utils/pdfExport';
 import { 
   generateRegionalReportWhatsAppMessage, 
   getRegionalReportWhatsAppUrl, 
@@ -64,6 +67,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [targetPhone, setTargetPhone] = useState<string>(BUSINESS_WA_NUMBER);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [quickExportingCard, setQuickExportingCard] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [exportToast, setExportToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const handleQuickExportCard = async (elementId: string, filename: string) => {
@@ -82,6 +86,35 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       setTimeout(() => setExportToast(null), 4000);
     } finally {
       setQuickExportingCard(null);
+    }
+  };
+
+  const handleGeneratePdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const filename = await generateAnalyticsPdfReport({
+        spots,
+        activeRegion,
+        totalDailyTraffic,
+        totalDailyImpressions,
+        occupancyRate,
+        totalMonthlyInventory,
+        clientName: 'Klien Rekanan / Agensi'
+      });
+      setExportToast({ 
+        type: 'success', 
+        message: `Proposal resmi PDF "${filename}" berhasil diekspor!` 
+      });
+      setTimeout(() => setExportToast(null), 5000);
+    } catch (err: any) {
+      console.error('PDF Generation Error:', err);
+      setExportToast({ 
+        type: 'error', 
+        message: 'Gagal mengekspor PDF report. Silakan coba kembali.' 
+      });
+      setTimeout(() => setExportToast(null), 5000);
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -194,6 +227,30 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 relative">
       
+      {/* Print-Only Official Report & Proposal Header */}
+      <div className="hidden print-only-header text-slate-900 border-b-2 border-emerald-600 pb-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-black tracking-tight text-slate-900">
+                OOH & DOOH JABAR ANALYTICS
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                Official Report
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Laporan Kinerja & Analisis Inventaris Media Luar Ruang Jawa Barat
+            </p>
+          </div>
+          <div className="text-right text-xs text-slate-500">
+            <div>Wilayah Fokus: <strong className="text-slate-900">{activeRegion}</strong></div>
+            <div>Dicetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+            <div className="text-[10px] text-emerald-700 font-semibold">Suherman Reklame • Media Intelligence</div>
+          </div>
+        </div>
+      </div>
+
       {/* Toast Notification for Chart Export */}
       {exportToast && (
         <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 text-xs font-semibold animate-in fade-in slide-in-from-bottom-4 duration-200 ${
@@ -245,7 +302,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 data-testid="btn-share-regional-report"
                 type="button"
                 onClick={() => setIsShareModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98] no-print"
                 title={`Kirim Ringkasan Laporan Kinerja Wilayah (${activeRegion}) via WhatsApp`}
               >
                 <MessageCircle className="w-3.5 h-3.5 fill-current" />
@@ -253,6 +310,37 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 <span className="hidden sm:inline-block px-1.5 py-0.2 rounded text-[10px] bg-slate-950/20 text-slate-900 font-bold">
                   {activeRegion}
                 </span>
+              </button>
+
+              {/* Generate PDF Report Button via jsPDF */}
+              <button
+                id="btn-generate-pdf-report"
+                data-testid="btn-generate-pdf-report"
+                type="button"
+                onClick={handleGeneratePdf}
+                disabled={isGeneratingPdf}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs transition-all shadow-md border border-emerald-400/30 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none no-print"
+                title="Ekspor Ringkasan Performa Dashboard ke Format PDF Resmi untuk Klien"
+              >
+                {isGeneratingPdf ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                ) : (
+                  <FileDown className="w-3.5 h-3.5 text-white" />
+                )}
+                <span>{isGeneratingPdf ? 'Membuat PDF...' : 'Generate PDF Report'}</span>
+              </button>
+
+              {/* Print-Friendly Browser Print Button */}
+              <button
+                id="btn-print-dashboard-report"
+                data-testid="btn-print-dashboard-report"
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-all border border-white/20 shadow-xs cursor-pointer hover:scale-[1.02] active:scale-[0.98] no-print"
+                title="Cetak atau Simpan sebagai PDF laporan resmi kinerja dashboard media"
+              >
+                <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Cetak Laporan (Print / PDF)</span>
               </button>
 
               <a
@@ -318,7 +406,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-800/80 p-3 rounded-xl border border-slate-700/60 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-800/80 p-3 rounded-xl border border-slate-700/60 text-xs print-highlight-card">
             <div>
               <div className="text-slate-400 text-[10px]">Traffic Harian</div>
               <div className="font-bold text-white text-sm">{formatCompactNumber(totalDailyTraffic)}</div>

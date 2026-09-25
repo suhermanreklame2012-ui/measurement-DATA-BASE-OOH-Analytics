@@ -539,14 +539,16 @@ export default function App() {
 
       {/* Interactive Filter Bar (Hidden when in Pipeline CRM view for clean workspace) */}
       {activeTab !== 'crm' && (
-        <FilterBar
-          filter={filter}
-          onFilterChange={setFilter}
-          availableCities={availableCities}
-          totalMatches={filteredSpots.length}
-          totalSpots={spots.length}
-          spots={spots}
-        />
+        <div className="no-print">
+          <FilterBar
+            filter={filter}
+            onFilterChange={setFilter}
+            availableCities={availableCities}
+            totalMatches={filteredSpots.length}
+            totalSpots={spots.length}
+            spots={spots}
+          />
+        </div>
       )}
 
       {/* Main Content Body with responsive mobile padding */}
@@ -829,7 +831,7 @@ export default function App() {
       )}
 
       {/* Application Minimal Footer */}
-      <footer role="contentinfo" className="bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-4 px-4 text-center mb-16 md:mb-0">
+      <footer role="contentinfo" className="bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-4 px-4 text-center mb-16 md:mb-0 no-print">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div>
             Sistem Database Pengukuran Media OOH &amp; DOOH Jawa Barat · Powered by Spatial Heatmap &amp; Real-Time Telemetry
@@ -857,11 +859,13 @@ export default function App() {
       </footer>
 
       {/* Mobile Responsive Bottom Dock Navigation for Handphones */}
-      <MobileBottomNav
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        totalSpots={spots.length}
-      />
+      <div className="no-print">
+        <MobileBottomNav
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          totalSpots={spots.length}
+        />
+      </div>
 
     </div>
   );

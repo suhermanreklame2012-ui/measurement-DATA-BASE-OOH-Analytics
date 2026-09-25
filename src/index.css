@@ -1,1 +1,138 @@
 @import "tailwindcss";
+
+/* ==========================================================================
+   Print-Friendly Media Query Styles for Reports & Proposals
+   ========================================================================== */
+@media print {
+  /* Set clean page layout with standard margins */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm 14mm 10mm;
+  }
+
+  /* Reset body and background for printing */
+  html, body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide non-essential navigation, headers, footers, interactive controls, and modals */
+  header,
+  nav,
+  footer,
+  aside,
+  .no-print,
+  [data-testid="chart-export-floating-menu"],
+  #chart-export-floating-menu,
+  .fixed,
+  .sticky,
+  button,
+  input,
+  select,
+  textarea,
+  [role="dialog"],
+  .modal-backdrop {
+    display: none !important;
+  }
+
+  /* Ensure main content container expands cleanly */
+  #main-content,
+  main,
+  .max-w-7xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Remove screen padding that causes overflow on printed pages */
+  .pb-28,
+  .md\:pb-16,
+  .pb-16 {
+    padding-bottom: 0 !important;
+  }
+
+  /* Print Header Banner - Highlight key identity */
+  .print-only-header {
+    display: block !important;
+    border-bottom: 2px solid #059669 !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* Card styling & contrast optimization for crisp paper printing */
+  .bg-white,
+  .bg-slate-50,
+  .bg-slate-800,
+  .bg-slate-900 {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  /* Key Data Cards: Highlight with clean solid borders */
+  .print-highlight-card {
+    border: 1.5px solid #059669 !important;
+    background: #f0fdf4 !important;
+    border-radius: 8px !important;
+    padding: 12px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Ensure Recharts SVGs and graphics render clearly */
+  svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  .recharts-wrapper {
+    width: 100% !important;
+  }
+
+  /* Prevent awkward page cuts in charts and data tables */
+  .page-break-avoid,
+  [id^="chart-card-"],
+  .grid > div {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 12px !important;
+  }
+
+  /* Force multi-column layouts into balanced printable format */
+  .grid {
+    display: grid !important;
+    page-break-inside: auto;
+  }
+
+  /* Preserve essential text colors for key metrics */
+  .text-emerald-400,
+  .text-emerald-500,
+  .text-emerald-600 {
+    color: #047857 !important;
+    font-weight: 700 !important;
+  }
+
+  .text-blue-500,
+  .text-blue-600 {
+    color: #1d4ed8 !important;
+    font-weight: 700 !important;
+  }
+
+  .text-purple-500,
+  .text-purple-600 {
+    color: #6d28d9 !important;
+    font-weight: 700 !important;
+  }
+
+  .text-amber-500,
+  .text-amber-600 {
+    color: #b45309 !important;
+    font-weight: 700 !important;
+  }
+}

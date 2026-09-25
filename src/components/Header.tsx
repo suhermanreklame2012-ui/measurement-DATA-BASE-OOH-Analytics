@@ -37,6 +37,7 @@ interface HeaderProps {
   onOpenAiSecurity: () => void;
   onOpenAiProposal: () => void;
   onOpenAiArchitect?: () => void;
+  onOpenAvailabilityQueue?: () => void;
   onOpenCrm?: () => void;
   onOpenEstimatedRoi?: () => void;
   onToggleNotif: () => void;
@@ -60,6 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAiSecurity,
   onOpenAiProposal,
   onOpenAiArchitect,
+  onOpenAvailabilityQueue,
   onOpenCrm,
   onOpenEstimatedRoi,
   onToggleNotif,
@@ -251,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
-                        8 Menu
+                        9 Menu
                       </span>
                     </div>
                   </div>
@@ -527,6 +529,34 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                         <p className="text-[11px] text-slate-400 truncate">
                           Sistem pengawas integritas data OOH Jawa Barat
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Antrean Ketersediaan & Demand (Mock-Queue) */}
+                    <button
+                      type="button"
+                      id="menu-availability-queue-btn"
+                      onClick={() => {
+                        setIsMasterMenuOpen(false);
+                        if (onOpenAvailabilityQueue) onOpenAvailabilityQueue();
+                      }}
+                      className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left hover:bg-slate-800/80 transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-950/80 text-amber-300 border border-amber-500/40 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                        <Flame className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors">
+                            Antrean Ketersediaan & Demand
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-500/30">
+                            Mock-Queue
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          Pantau titik tersewa ber-demand tinggi & antrean prospek
                         </p>
                       </div>
                     </button>

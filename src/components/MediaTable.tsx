@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { MediaSpot, ClientContact, ProposalDuration, FilterState } from '../types/ooh';
 import { PerformanceOverview } from './PerformanceOverview';
 import { SpotComparisonView } from './SpotComparisonView';
-import { formatIDR, formatCompactNumber } from '../utils/formatters';
+import { formatIDR, formatCompactNumber, formatCompactIDR } from '../utils/formatters';
 import { exportSpotsToCSV, addNotification } from '../services/storageService';
 import { openSpotDirectWhatsApp, openMultipleSpotsDirectWhatsApp } from '../utils/whatsapp';
 import { getStoredClients } from '../services/clientService';
@@ -47,8 +47,12 @@ import {
   GitCompare,
   Trash2,
   AlertTriangle,
-  Plus
+  Plus,
+  SlidersHorizontal,
+  Flame,
+  Bell
 } from 'lucide-react';
+import { calculateDemandMetrics } from '../services/availabilityAlertService';
 
 interface MediaTableProps {
   spots: MediaSpot[];
@@ -61,6 +65,7 @@ interface MediaTableProps {
   onBulkUpdateAvailability: (spotIds: string[], isAvailable: boolean) => void;
   onOpenAiProposal?: (spots: MediaSpot[]) => void;
   onOpenRoiCalculator?: (spot: MediaSpot) => void;
+  onOpenAvailabilityQueue?: () => void;
   filter?: FilterState;
   onSelectRegion?: (region: string) => void;
   isAdmin?: boolean;
@@ -82,6 +87,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   onBulkUpdateAvailability,
   onOpenAiProposal,
   onOpenRoiCalculator,
+  onOpenAvailabilityQueue,
   filter,
   onSelectRegion,
   isAdmin = false,
@@ -92,6 +98,23 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 15;
+
+  // Demand Queue Update Tick & Metrics
+  const [demandUpdateTick, setDemandUpdateTick] = useState<number>(0);
+
+  useEffect(() => {
+    const handleAlertChange = () => setDemandUpdateTick(t => t + 1);
+    window.addEventListener('ooh_availability_alert_updated', handleAlertChange);
+    window.addEventListener('ooh_availability_alert_added', handleAlertChange);
+    return () => {
+      window.removeEventListener('ooh_availability_alert_updated', handleAlertChange);
+      window.removeEventListener('ooh_availability_alert_added', handleAlertChange);
+    };
+  }, []);
+
+  const demandMetrics = useMemo(() => {
+    return calculateDemandMetrics(spots);
+  }, [spots, demandUpdateTick]);
 
   // Bulk Selection State & Quick Compare State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -564,6 +587,41 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               </button>
             </div>
 
+            {/* Compare Spots Button (Visible when 2 or more spots selected) */}
+            {selectedIds.size >= 2 && (
+              <button
+                id="btn-compare-spots-toolbar"
+                data-testid="btn-compare-spots-toolbar"
+                type="button"
+                onClick={handleOpenComparisonModal}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold rounded-lg border border-emerald-300 text-xs transition-all shadow-sm active:scale-95 cursor-pointer animate-in fade-in"
+                title="Compare Spots: Buka perbandingan side-by-side untuk traffic, price, dan visibility titik terpilih"
+              >
+                <Scale className="w-4 h-4 fill-slate-950" />
+                <span>Compare Spots ({selectedIds.size})</span>
+              </button>
+            )}
+
+            {/* Availability Demand Queue Button */}
+            {onOpenAvailabilityQueue && (
+              <button
+                id="btn-open-demand-queue-toolbar"
+                data-testid="btn-open-demand-queue-toolbar"
+                type="button"
+                onClick={onOpenAvailabilityQueue}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 via-slate-800 to-slate-800 hover:from-amber-500/30 hover:to-slate-700 text-amber-300 font-bold rounded-lg border border-amber-500/40 text-xs transition-all shadow-2xs active:scale-95 cursor-pointer"
+                title="Buka Antrean Ketersediaan & Analisis Demand Titik Tersewa"
+              >
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                <span>Demand Queue ({demandMetrics.totalQueueCount})</span>
+                {demandMetrics.totalBookedWithDemand > 0 && (
+                  <span className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-rose-500/30 text-rose-300 text-[10px] font-mono">
+                    {demandMetrics.totalBookedWithDemand} Tersewa
+                  </span>
+                )}
+              </button>
+            )}
+
             {/* Batch Share to WhatsApp (Quick Header Action) */}
             <button
               id="btn-batch-share-whatsapp-toolbar"
@@ -664,17 +722,21 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                 Aksi Massal:
               </span>
 
-              {/* Bandingkan Titik (Spot Comparison Radar View Modal) */}
+              {/* Bandingkan Titik (Compare Spots) */}
               <button
-                id="btn-bulk-compare-radar"
-                data-testid="btn-compare-selected-top"
+                id="btn-compare-spots-bulk"
+                data-testid="btn-compare-spots"
                 type="button"
                 onClick={handleOpenComparisonModal}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold rounded-lg text-xs transition-all shadow-xs border border-emerald-300 active:scale-95 cursor-pointer"
-                title="Buka modal perbandingan Radar Chart multi-dimensi untuk titik terpilih"
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 font-bold rounded-lg text-xs transition-all shadow-xs active:scale-95 cursor-pointer ${
+                  selectedIds.size >= 2
+                    ? 'bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 border border-emerald-200 ring-2 ring-emerald-300/40'
+                    : 'bg-emerald-700/80 text-white hover:bg-emerald-600 border border-emerald-500/50'
+                }`}
+                title={selectedIds.size >= 2 ? "Compare Spots: Buka tampilan side-by-side untuk traffic, price, dan visibility" : "Pilih minimal 2 titik untuk Compare Spots"}
               >
-                <Scale className="w-3.5 h-3.5 text-slate-950 font-bold" />
-                <span>Compare Selected ({selectedIds.size})</span>
+                <Scale className="w-3.5 h-3.5 fill-slate-950 font-bold" />
+                <span>Compare Spots ({selectedIds.size})</span>
               </button>
 
               {/* Batch Generate PDF Proposal */}
@@ -798,9 +860,10 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                   <div className="flex flex-col items-center justify-center gap-0.5">
                     <button
                       id="btn-toggle-select-all-page"
+                      data-testid="btn-toggle-select-all-page"
                       type="button"
                       onClick={toggleSelectPage}
-                      className="text-slate-600 hover:text-emerald-700 transition-colors focus:outline-hidden"
+                      className="text-slate-600 hover:text-emerald-700 transition-colors focus:outline-hidden cursor-pointer"
                       title={isAllPageSelected ? 'Batal pilih halaman ini' : 'Pilih semua di halaman ini'}
                     >
                       {isAllPageSelected ? (
@@ -811,7 +874,9 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                         <Square className="w-4 h-4 text-slate-400" />
                       )}
                     </button>
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Compare</span>
+                    <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-tight whitespace-nowrap">
+                      Quick Compare
+                    </span>
                   </div>
                 </th>
                 <th className="py-3 px-2 w-8 text-center">No</th>
@@ -929,7 +994,8 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                       {/* Quick Compare Checkbox */}
                       <td className="py-3 px-3 text-center">
                         <label
-                          className="inline-flex items-center justify-center cursor-pointer p-1 rounded-md hover:bg-emerald-100/60 transition-colors select-none"
+                          htmlFor={`quick-compare-${spot.id}`}
+                          className="inline-flex flex-col items-center justify-center cursor-pointer p-1 rounded-md hover:bg-emerald-100/60 transition-colors select-none group/chk"
                           title={`Quick Compare: Centang untuk membandingkan "${spot.name}"`}
                         >
                           <input
@@ -939,12 +1005,16 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                             checked={isSelected}
                             onChange={(e) => toggleSelectSpot(spot.id, e)}
                             className="sr-only"
+                            aria-label={`Quick Compare ${spot.name}`}
                           />
                           {isSelected ? (
                             <CheckSquare className="w-4 h-4 text-emerald-600 fill-emerald-100" />
                           ) : (
-                            <Square className="w-4 h-4 text-slate-300 hover:text-slate-500" />
+                            <Square className="w-4 h-4 text-slate-300 group-hover/chk:text-emerald-600" />
                           )}
+                          <span className="text-[8px] font-bold text-slate-400 group-hover/chk:text-emerald-700 mt-0.5 leading-none">
+                            Compare
+                          </span>
                         </label>
                       </td>
 
@@ -1069,6 +1139,21 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                             <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-0.5 border-4 border-transparent border-t-slate-900/95" />
                           </div>
                         </div>
+
+                        {/* Availability Alerts Demand Badge in Table Row */}
+                        {(demandMetrics.demandMapBySpotId[spot.id] || 0) > 0 && (
+                          <div className="mt-1">
+                            <button
+                              type="button"
+                              onClick={() => onSelectSpot(spot)}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-800 hover:bg-amber-500/30 border border-amber-300 transition-colors cursor-pointer"
+                              title={`${demandMetrics.demandMapBySpotId[spot.id]} calon klien mendaftar antrean ketersediaan (Availability Alert) untuk titik ini`}
+                            >
+                              <Flame className="w-2.5 h-2.5 text-amber-600 fill-amber-500/20" />
+                              <span>{demandMetrics.demandMapBySpotId[spot.id]} Peminat</span>
+                            </button>
+                          </div>
+                        )}
                       </td>
 
                       {/* Aksi */}
@@ -1238,8 +1323,8 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                         {/* Top-Left: Quick Compare Checkbox & Index Badge */}
                         <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
                           <label
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-900/85 hover:bg-slate-900 text-white backdrop-blur-xs transition-colors cursor-pointer border border-white/20 select-none text-[10px] font-semibold shadow-xs"
-                            title={isSelected ? 'Hapus dari Quick Compare' : 'Centang untuk Quick Compare'}
+                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-900/85 hover:bg-slate-900 text-white backdrop-blur-xs transition-colors cursor-pointer border border-white/20 select-none text-[10px] font-semibold shadow-xs"
+                            title={isSelected ? 'Hapus dari Quick Compare' : 'Quick Compare: Centang untuk membandingkan titik ini'}
                           >
                             <input
                               type="checkbox"
@@ -1248,21 +1333,33 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                               checked={isSelected}
                               onChange={(e) => toggleSelectSpot(spot.id, e)}
                               className="sr-only"
+                              aria-label={`Quick Compare ${spot.name}`}
                             />
                             {isSelected ? (
                               <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
                             ) : (
                               <Square className="w-3.5 h-3.5 text-white/80" />
                             )}
-                            <span>Compare</span>
+                            <span className="font-semibold">Quick Compare</span>
                           </label>
                           <span className="px-2 py-0.5 rounded-md bg-slate-900/80 backdrop-blur-xs text-[10px] font-bold text-white border border-white/10">
                             #{rowNum}
                           </span>
                         </div>
 
-                        {/* Top-Right: Interactive Availability Status Toggle */}
-                        <div className="absolute top-2.5 right-2.5 z-10">
+                        {/* Top-Right: Interactive Availability Status Toggle & Demand Queue Badge */}
+                        <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
+                          {(demandMetrics.demandMapBySpotId[spot.id] || 0) > 0 && (
+                            <span 
+                              onClick={() => onSelectSpot(spot)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold bg-amber-500/95 text-slate-950 backdrop-blur-md border border-amber-300 shadow-xs cursor-pointer hover:bg-amber-400"
+                              title={`${demandMetrics.demandMapBySpotId[spot.id]} peminat mengantre di Availability Alert`}
+                            >
+                              <Flame className="w-2.5 h-2.5 fill-slate-950" />
+                              <span>{demandMetrics.demandMapBySpotId[spot.id]} Antre</span>
+                            </span>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => {
@@ -1797,17 +1894,17 @@ export const MediaTable: React.FC<MediaTableProps> = ({
             </span>
           </div>
 
-          {/* Persistent Compare Selected Button */}
+          {/* Persistent Compare Spots Button */}
           <button
-            id="btn-compare-selected"
-            data-testid="btn-compare-selected"
+            id="btn-compare-spots"
+            data-testid="btn-compare-spots"
             type="button"
             onClick={handleOpenComparisonModal}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg hover:shadow-emerald-500/30 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
-            title="Buka modal perbandingan side-by-side radar chart untuk titik-titik terpilih"
+            title="Compare Spots: Buka tampilan side-by-side untuk traffic, price, dan visibility titik terpilih"
           >
             <Scale className="w-4 h-4 fill-slate-950" />
-            <span>Compare Selected ({selectedIds.size})</span>
+            <span>Compare Spots ({selectedIds.size})</span>
           </button>
 
           {/* Quick Clear Selection */}
@@ -1823,7 +1920,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
         </div>
       )}
 
-      {/* Side-by-Side Radar Chart Comparison Modal */}
+      {/* Side-by-Side Comparison Modal */}
       {isCompareModalOpen && (
         <div
           id="modal-side-by-side-comparison"
@@ -1839,13 +1936,13 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base flex items-center gap-2">
-                    <span>Side-by-Side Radar Chart Comparison</span>
+                    <span>Compare Spots (Side-by-Side View)</span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/30">
                       {effectiveComparedSpots.length} Titik Terpilih
                     </span>
                   </h3>
                   <p className="text-[11px] text-slate-400">
-                    Analisis multi-dimensi perbandingan titik: Potensi Paparan OTS, Volume Lalu Lintas, Efisiensi CPM, Dimensi Media, dan Visibilitas
+                    Perbandingan langsung metrik utama periklanan: Traffic Kendaraan, Tarif Sewa (Price), dan Visibilitas secara berdampingan (Side-by-Side)
                   </p>
                 </div>
               </div>
@@ -1860,6 +1957,98 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Side-by-Side Key Metrics Bar (Traffic, Price & Visibility) */}
+            <div className="bg-white border-b border-slate-200 px-5 py-3 shadow-2xs shrink-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wide">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-600" />
+                    Key Metrics Side-by-Side (Traffic, Price & Visibility)
+                  </span>
+                  <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200 font-mono">
+                    {effectiveComparedSpots.length} Titik
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium">
+                  Perbandingan langsung metrik lalu lintas harian, tarif sewa, dan visibilitas
+                </div>
+              </div>
+
+              {/* Side-by-Side Spots Columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-56 overflow-y-auto pr-1">
+                {effectiveComparedSpots.map((spot, idx) => (
+                  <div
+                    key={`side-by-side-card-${spot.id}`}
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 hover:border-emerald-300 transition-all space-y-2 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="min-w-0">
+                        <div
+                          onClick={() => {
+                            setIsCompareModalOpen(false);
+                            onSelectSpot(spot);
+                          }}
+                          className="font-bold text-xs text-slate-900 hover:text-emerald-700 cursor-pointer truncate"
+                          title={spot.name}
+                        >
+                          {idx + 1}. {spot.name}
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate">
+                          {spot.roadName || spot.district}, {spot.city}
+                        </div>
+                      </div>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
+                        spot.category === 'DOOH_DIGITAL' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {spot.category === 'DOOH_DIGITAL' ? 'DOOH' : 'OOH'}
+                      </span>
+                    </div>
+
+                    {/* Key Metrics 3-Column Box: Traffic, Price, Visibility */}
+                    <div className="grid grid-cols-3 gap-1.5 pt-1.5 border-t border-slate-200/80 text-[10px]">
+                      {/* Metric 1: Traffic */}
+                      <div className="bg-white p-2 rounded-lg border border-slate-200/80">
+                        <div className="text-slate-400 flex items-center gap-0.5 font-medium">
+                          <Car className="w-3 h-3 text-blue-500" />
+                          Traffic
+                        </div>
+                        <div className="font-extrabold text-slate-900 mt-0.5">
+                          {formatCompactNumber(spot.dailyTraffic)}
+                        </div>
+                        <div className="text-[8.5px] text-slate-500 truncate" title={spot.trafficDensity}>
+                          {spot.trafficDensity}
+                        </div>
+                      </div>
+
+                      {/* Metric 2: Price */}
+                      <div className="bg-white p-2 rounded-lg border border-slate-200/80">
+                        <div className="text-slate-400 flex items-center gap-0.5 font-medium">
+                          <DollarSign className="w-3 h-3 text-emerald-500" />
+                          Price
+                        </div>
+                        <div className="font-extrabold text-emerald-700 mt-0.5">
+                          {formatCompactIDR(spot.pricing?.oneMonth || 0)}
+                        </div>
+                        <div className="text-[8.5px] text-slate-500">/bulan</div>
+                      </div>
+
+                      {/* Metric 3: Visibility */}
+                      <div className="bg-white p-2 rounded-lg border border-slate-200/80">
+                        <div className="text-slate-400 flex items-center gap-0.5 font-medium">
+                          <Sparkles className="w-3 h-3 text-amber-500" />
+                          Visibility
+                        </div>
+                        <div className="font-extrabold text-amber-700 mt-0.5">
+                          {spot.visibilityScore || 85}/100
+                        </div>
+                        <div className="text-[8.5px] text-slate-500 truncate">{spot.layout}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Modal Body: SpotComparisonView */}

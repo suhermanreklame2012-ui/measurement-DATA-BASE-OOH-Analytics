@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   X, 
   MapPin, 
@@ -30,7 +30,11 @@ import {
   CalendarCheck,
   Pencil,
   Trash2,
-  Smartphone
+  Smartphone,
+  Bell,
+  Flame,
+  Users,
+  UserCheck
 } from 'lucide-react';
 import { MediaSpot } from '../types/ooh';
 import { formatIDR, formatCompactNumber, formatCompactIDR } from '../utils/formatters';
@@ -44,6 +48,13 @@ import { googleSignIn, getAccessToken } from '../services/googleAuthService';
 import { createCalendarEvent } from '../services/googleCalendarService';
 import { addNotification } from '../services/storageService';
 import { formatImageUrl } from '../utils/imageUtils';
+import {
+  AvailabilityAlertItem,
+  getAlertsForSpot,
+  addAvailabilityAlert,
+  updateAlertStatus,
+  deleteAlert
+} from '../services/availabilityAlertService';
 
 interface MediaDetailModalProps {
   spot: MediaSpot | null;
@@ -78,6 +89,82 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
   const [isBookingCalendar, setIsBookingCalendar] = useState<boolean>(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
 
+  // Availability Alert Sign Up & Queue States
+  const [spotAlerts, setSpotAlerts] = useState<AvailabilityAlertItem[]>([]);
+  const [isAlertFormOpen, setIsAlertFormOpen] = useState<boolean>(false);
+  const [alertName, setAlertName] = useState<string>('');
+  const [alertPhone, setAlertPhone] = useState<string>('');
+  const [alertEmail, setAlertEmail] = useState<string>('');
+  const [alertCompany, setAlertCompany] = useState<string>('');
+  const [alertDuration, setAlertDuration] = useState<string>('3 Bulan');
+  const [alertPreferredMonth, setAlertPreferredMonth] = useState<string>('Segera saat kosong');
+  const [alertNotes, setAlertNotes] = useState<string>('');
+  const [alertSuccess, setAlertSuccess] = useState<boolean>(false);
+  const [registeredAlert, setRegisteredAlert] = useState<AvailabilityAlertItem | null>(null);
+
+  // Load alerts for this specific spot
+  const loadSpotAlerts = () => {
+    if (spot) {
+      setSpotAlerts(getAlertsForSpot(spot.id));
+    }
+  };
+
+  useEffect(() => {
+    loadSpotAlerts();
+    setAlertSuccess(false);
+    setRegisteredAlert(null);
+  }, [spot?.id]);
+
+  useEffect(() => {
+    const handleAlertChange = () => loadSpotAlerts();
+    window.addEventListener('ooh_availability_alert_updated', handleAlertChange);
+    window.addEventListener('ooh_availability_alert_added', handleAlertChange);
+    return () => {
+      window.removeEventListener('ooh_availability_alert_updated', handleAlertChange);
+      window.removeEventListener('ooh_availability_alert_added', handleAlertChange);
+    };
+  }, [spot?.id]);
+
+  const handleRegisterAvailabilityAlert = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!spot || !alertName || !alertPhone || !alertEmail) {
+      alert('Mohon lengkapi Nama, Nomor WhatsApp, dan Email.');
+      return;
+    }
+
+    const newAlert = addAvailabilityAlert({
+      spotId: spot.id,
+      spotName: spot.name,
+      roadName: spot.roadName,
+      city: spot.city,
+      mediaType: spot.mediaType,
+      userName: alertName,
+      userPhone: alertPhone,
+      userEmail: alertEmail,
+      company: alertCompany,
+      targetDuration: alertDuration,
+      preferredMonth: alertPreferredMonth,
+      notes: alertNotes,
+      isCurrentlyBooked: !spot.isAvailable
+    });
+
+    setRegisteredAlert(newAlert);
+    setAlertSuccess(true);
+    loadSpotAlerts();
+  };
+
+  const handleUpdateProspectStatus = (alertId: string, status: AvailabilityAlertItem['status']) => {
+    updateAlertStatus(alertId, status);
+    loadSpotAlerts();
+  };
+
+  const handleDeleteProspectAlert = (alertId: string) => {
+    if (window.confirm('Hapus peminat ini dari antrean?')) {
+      deleteAlert(alertId);
+      loadSpotAlerts();
+    }
+  };
+
   const spotPhotos = useMemo(() => {
     if (spot?.imageUrls && spot.imageUrls.length > 0) {
       return spot.imageUrls.filter(p => p && p.trim().length > 0);
@@ -108,6 +195,80 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
       activePricing.totalPrice
     );
   }, [spot?.dailyImpressions, activePricing.days, activePricing.totalPrice]);
+
+  const trafficBadge = useMemo(() => {
+    if (!spot) return { label: 'Normal Traffic', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30', badgeBg: 'bg-slate-900' };
+    const density = spot.trafficDensity;
+    const traffic = spot.dailyTraffic || 0;
+    if (density === 'Sangat Padat' || traffic >= 60000) {
+      return {
+        label: 'High Traffic',
+        sublabel: 'Sangat Padat',
+        color: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+        badgeBg: 'bg-rose-950/60'
+      };
+    }
+    if (density === 'Padat' || traffic >= 35000) {
+      return {
+        label: 'High Traffic',
+        sublabel: 'Padat',
+        color: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        badgeBg: 'bg-amber-950/60'
+      };
+    }
+    if (density === 'Sedang' || traffic >= 20000) {
+      return {
+        label: 'Moderate Traffic',
+        sublabel: 'Sedang',
+        color: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+        badgeBg: 'bg-blue-950/60'
+      };
+    }
+    return {
+      label: 'Smooth Traffic',
+      sublabel: 'Lancar',
+      color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      badgeBg: 'bg-emerald-950/60'
+    };
+  }, [spot?.trafficDensity, spot?.dailyTraffic]);
+
+  const roiBadge = useMemo(() => {
+    if (!spot) return { label: 'Standard ROI', detail: 'Normal', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30', badgeBg: 'bg-slate-900' };
+    const roi = potentialRoi.roiPercentage;
+    const impressions = spot.dailyImpressions || 0;
+    const isCommercial = spot.locationType === 'Komersial & Mall' || spot.locationType === 'Pusat Kota & Protokol';
+    
+    if (roi >= 90 || impressions >= 70000 || (isCommercial && impressions >= 50000)) {
+      return {
+        label: 'Growth Potential',
+        detail: 'High Yield',
+        color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        badgeBg: 'bg-emerald-950/60'
+      };
+    }
+    if (roi >= 60 || impressions >= 40000) {
+      return {
+        label: 'Growth Potential',
+        detail: 'Solid Reach',
+        color: 'bg-teal-500/20 text-teal-300 border-teal-500/40',
+        badgeBg: 'bg-teal-950/60'
+      };
+    }
+    if (potentialRoi.cpm > 0 && potentialRoi.cpm <= 15000) {
+      return {
+        label: 'High Efficiency',
+        detail: 'Low CPM',
+        color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+        badgeBg: 'bg-cyan-950/60'
+      };
+    }
+    return {
+      label: 'Steady Performer',
+      detail: 'Consistent OTS',
+      color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+      badgeBg: 'bg-indigo-950/60'
+    };
+  }, [spot?.dailyImpressions, spot?.locationType, potentialRoi.roiPercentage, potentialRoi.cpm]);
 
   if (!spot) return null;
 
@@ -361,10 +522,106 @@ ${savingsNote}
 
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors flex-shrink-0"
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors flex-shrink-0 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* Spot Highlights Bar (Traffic Density & ROI Category Badges directly under Header) */}
+        <div 
+          id="spot-header-badges-bar"
+          className="px-6 py-2 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Traffic Density Badge (e.g. 'High Traffic') */}
+            <span
+              id="badge-traffic-density"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${trafficBadge.color} ${trafficBadge.badgeBg}`}
+              title={`Kepadatan Lalu Lintas: ${spot.trafficDensity} (~${spot.dailyTraffic.toLocaleString('id-ID')} kendaraan/hari)`}
+            >
+              <Car className="w-3.5 h-3.5" />
+              <span>{trafficBadge.label}</span>
+              <span className="text-[10px] opacity-75 font-normal">({trafficBadge.sublabel})</span>
+            </span>
+
+            {/* ROI Category Badge (e.g. 'Growth Potential') */}
+            <span
+              id="badge-roi-category"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${roiBadge.color} ${roiBadge.badgeBg}`}
+              title={`Kategori ROI: ${roiBadge.label} • ${roiBadge.detail} (Estimasi ROI: +${potentialRoi.roiPercentage.toFixed(1)}%)`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>{roiBadge.label}</span>
+              <span className="text-[10px] opacity-75 font-normal font-mono">+{potentialRoi.roiPercentage.toFixed(0)}% ROI</span>
+            </span>
+
+            {/* Corridor Location Tag */}
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-800/90 text-slate-300 border border-slate-700/80">
+              <MapPin className="w-3 h-3 text-emerald-400" />
+              <span>{spot.city} (Kec. {spot.district})</span>
+            </span>
+
+            {/* Availability Demand & Queue Badge */}
+            {spotAlerts.length > 0 ? (
+              <button
+                type="button"
+                id="badge-demand-queue-header"
+                onClick={() => {
+                  const el = document.getElementById('availability-alerts-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  setIsAlertFormOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-amber-500/40 bg-amber-950/70 text-amber-300 hover:bg-amber-900/60 transition-colors cursor-pointer"
+                title={`${spotAlerts.length} calon pengiklan mengantre di Availability Alert untuk titik ini`}
+              >
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                <span>{spotAlerts.length} Peminat Mengantre</span>
+                {!spot.isAvailable && <span className="text-[10px] text-rose-400 font-semibold">(Sold Out)</span>}
+              </button>
+            ) : !spot.isAvailable ? (
+              <button
+                type="button"
+                id="badge-demand-queue-header"
+                onClick={() => {
+                  const el = document.getElementById('availability-alerts-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  setIsAlertFormOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-rose-500/40 bg-rose-950/70 text-rose-300 hover:bg-rose-900/60 transition-colors cursor-pointer"
+                title="Titik ini berstatus Tersewa. Klik untuk daftar ke antrean ketersediaan."
+              >
+                <Bell className="w-3.5 h-3.5 text-rose-400" />
+                <span>Tersewa • Daftar Antrean</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                id="badge-demand-queue-header"
+                onClick={() => {
+                  const el = document.getElementById('availability-alerts-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  setIsAlertFormOpen(true);
+                }}
+                className="hidden md:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border border-slate-700 bg-slate-900 text-slate-300 hover:text-emerald-300 transition-colors cursor-pointer"
+                title="Daftar ke antrean Availability Alert untuk titik ini"
+              >
+                <Bell className="w-3 h-3 text-slate-400" />
+                <span>Availability Alert</span>
+              </button>
+            )}
+          </div>
+
+          {/* Quick Metrics Summary */}
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+            <span>
+              OTS: <strong className="text-white font-semibold">{formatCompactNumber(spot.dailyImpressions)}</strong> /hari
+            </span>
+            <span className="text-slate-600">•</span>
+            <span>
+              Trafik: <strong className="text-white font-semibold">{formatCompactNumber(spot.dailyTraffic)}</strong> kend.
+            </span>
           </div>
         </div>
 
@@ -592,6 +849,396 @@ ${savingsNote}
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Availability Alerts Sign Up & Mock-Queue Section */}
+          <div 
+            id="availability-alerts-section"
+            className={`rounded-2xl border transition-all overflow-hidden ${
+              !spot.isAvailable
+                ? 'bg-gradient-to-br from-rose-950/30 via-slate-900 to-amber-950/20 border-rose-500/40 shadow-sm'
+                : 'bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/30 border-emerald-500/40 shadow-sm'
+            }`}
+          >
+            {/* Alert Header Banner */}
+            <div className="p-4 sm:p-5 border-b border-slate-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    !spot.isAvailable
+                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  }`}>
+                    {!spot.isAvailable ? <Flame className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-sm font-bold text-white tracking-tight">
+                        {!spot.isAvailable 
+                          ? 'Sign Up for Availability Alerts (Antrean Ketersediaan)'
+                          : 'Availability Alert & Reservasi Periode Mendatang'}
+                      </h4>
+                      
+                      {!spot.isAvailable ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse">
+                          ⚠️ Tersewa / Sold Out
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          ✓ Tersedia
+                        </span>
+                      )}
+
+                      {spotAlerts.length > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
+                          🔥 {spotAlerts.length} Peminat di Antrean
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                      {!spot.isAvailable 
+                        ? 'Titik strategis ini sedang tersewa. Daftarkan nomor WhatsApp dan email Anda agar sistem memprioritaskan penawaran kepada Anda begitu masa sewa pengiklan saat ini berakhir.'
+                        : 'Ingin memesan periode kampanye mendatang atau mendapatkan pembaruan status prioritas untuk titik ini? Daftarkan kontak Anda di antrean ketersediaan.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="sm:text-right shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsAlertFormOpen(!isAlertFormOpen)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                      isAlertFormOpen
+                        ? 'bg-slate-800 text-slate-200 border border-slate-700'
+                        : !spot.isAvailable
+                        ? 'bg-rose-500 hover:bg-rose-600 text-white'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    }`}
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    <span>{isAlertFormOpen ? 'Tutup Formulir' : 'Daftar Antrean Alert'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Registration Form / Success Confirmation */}
+            {isAlertFormOpen && (
+              <div className="p-4 sm:p-5 bg-slate-950/80 border-b border-slate-800">
+                {alertSuccess && registeredAlert ? (
+                  <div className="p-4 bg-emerald-950/70 border border-emerald-500/60 rounded-xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 font-bold">
+                        <Check className="w-5 h-5 stroke-[3]" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-white text-sm">
+                          Pendaftaran Availability Alert Berhasil!
+                        </div>
+                        <p className="text-xs text-emerald-200 mt-0.5">
+                          Terima kasih <strong className="text-white">{registeredAlert.userName}</strong>
+                          {registeredAlert.company ? ` (${registeredAlert.company})` : ''}. Ketertarikan Anda untuk titik <strong className="text-white">{spot.name}</strong> telah disimpan di antrean ketersediaan (Local Mock-Queue).
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
+                          <span className="px-2 py-0.5 rounded bg-slate-900 border border-emerald-500/40 font-mono">
+                            No. Antrean: #{spotAlerts.length}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700">
+                            Durasi: {registeredAlert.targetDuration}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700">
+                            Waktu: {registeredAlert.preferredMonth}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-emerald-800/60">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const msg = encodeURIComponent(
+                            `Halo Pak Suherman, saya ${registeredAlert.userName}${registeredAlert.company ? ` dari ${registeredAlert.company}` : ''}. ` +
+                            `Saya baru saja mendaftar antrean Availability Alert untuk titik reklame *${spot.name}* (${spot.city}). ` +
+                            `Mohon diprioritaskan saat slot sewa tersedia. Terima kasih.`
+                          );
+                          window.open(`https://wa.me/6287822248975?text=${msg}`, '_blank');
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-bold text-xs cursor-pointer shadow-xs active:scale-95"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 fill-slate-950" />
+                        <span>Konfirmasi via WhatsApp ke Suherman</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAlertSuccess(false);
+                          setRegisteredAlert(null);
+                          setAlertName('');
+                          setAlertPhone('');
+                          setAlertEmail('');
+                          setAlertCompany('');
+                          setAlertNotes('');
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700 cursor-pointer"
+                      >
+                        Daftar Kontak Lain
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleRegisterAvailabilityAlert} className="space-y-3.5">
+                    <div className="text-xs font-bold text-white flex items-center justify-between">
+                      <span>Formulir Pendaftaran Antrean Ketersediaan</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        * Data akan disimpan langsung ke Mock-Queue Admin
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          Nama Lengkap / PIC <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Nama Anda / Marketing Manager"
+                          value={alertName}
+                          onChange={(e) => setAlertName(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          Nomor WhatsApp <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          placeholder="Contoh: 08123456789"
+                          value={alertPhone}
+                          onChange={(e) => setAlertPhone(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          Email Bisnis / Perusahaan <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          placeholder="nama@perusahaan.co.id"
+                          value={alertEmail}
+                          onChange={(e) => setAlertEmail(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          Nama Brand / Perusahaan (Opsional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: PT Brand Nusantara / FMCG"
+                          value={alertCompany}
+                          onChange={(e) => setAlertCompany(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          Rencana Durasi Sewa
+                        </label>
+                        <select
+                          value={alertDuration}
+                          onChange={(e) => setAlertDuration(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white cursor-pointer focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="1 Bulan">1 Bulan</option>
+                          <option value="3 Bulan">3 Bulan</option>
+                          <option value="6 Bulan">6 Bulan (Hemat 5%)</option>
+                          <option value="1 Tahun">1 Tahun (Hemat 5%)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          Rencana Mulai Pemasangan
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: Segera saat kosong / 1-2 Bulan ke depan"
+                          value={alertPreferredMonth}
+                          onChange={(e) => setAlertPreferredMonth(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Catatan Tambahan (Opsional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Siap tanda tangan kontrak kilat, butuh materi penerangan malam maksimal"
+                        value={alertNotes}
+                        onChange={(e) => setAlertNotes(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsAlertFormOpen(false)}
+                        className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs text-white transition-all shadow-sm cursor-pointer ${
+                          !spot.isAvailable
+                            ? 'bg-rose-600 hover:bg-rose-500'
+                            : 'bg-emerald-600 hover:bg-emerald-500'
+                        }`}
+                      >
+                        <Bell className="w-3.5 h-3.5" />
+                        <span>Daftarkan ke Antrean Ketersediaan</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* Admin Insights: Waiting List Queue for this Spot */}
+            {isAdmin && (
+              <div className="p-4 sm:p-5 bg-slate-950/90 border-t border-slate-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                    <h5 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <span>Admin Demand Insights: Antrean Peminat Titik Ini</span>
+                      <span className="text-[10px] px-2 py-0.2 rounded-full bg-indigo-500/20 text-indigo-300 font-mono">
+                        {spotAlerts.length} Peminat
+                      </span>
+                    </h5>
+                  </div>
+                  <span className="text-[10px] text-indigo-300 font-mono">
+                    Akses Superadmin Aktif
+                  </span>
+                </div>
+
+                {spotAlerts.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 text-xs text-center">
+                    Belum ada calon pengiklan yang mendaftar di antrean untuk titik ini.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {spotAlerts.map(alert => (
+                      <div 
+                        key={alert.id}
+                        className="p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white">{alert.userName}</span>
+                            {alert.company && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
+                                {alert.company}
+                              </span>
+                            )}
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                              alert.status === 'PENDING'
+                                ? 'bg-amber-950/80 text-amber-300 border-amber-600/40'
+                                : alert.status === 'CONTACTED'
+                                ? 'bg-blue-950/80 text-blue-300 border-blue-600/40'
+                                : alert.status === 'CONVERTED'
+                                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/40'
+                                : 'bg-slate-800 text-slate-400 border-slate-700'
+                            }`}>
+                              {alert.status}
+                            </span>
+                          </div>
+
+                          <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <span className="text-slate-300 font-mono">{alert.userPhone}</span>
+                            <span>•</span>
+                            <span className="text-slate-300">{alert.userEmail}</span>
+                            <span>•</span>
+                            <span>Durasi: <strong className="text-slate-200">{alert.targetDuration}</strong></span>
+                            <span>•</span>
+                            <span>Target: <strong className="text-emerald-400">{alert.preferredMonth}</strong></span>
+                          </div>
+
+                          {alert.notes && (
+                            <p className="text-[10px] text-slate-400 italic mt-0.5">
+                              "{alert.notes}"
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              let cleanPhone = alert.userPhone.replace(/\D/g, '');
+                              if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
+                              const msg = encodeURIComponent(
+                                `Halo ${alert.userName}, saya Suherman dari OOH/DOOH Bandung. ` +
+                                `Menindaklanjuti antrean Availability Alert Anda untuk titik *${spot.name}*. ` +
+                                `Kapan ada waktu luang untuk mendiskusikan jadwal dan materi iklan? Terima kasih.`
+                              );
+                              window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 text-[11px] font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
+                            title="Chat calon klien via WhatsApp"
+                          >
+                            <MessageCircle className="w-3 h-3 fill-slate-950" />
+                            <span>WhatsApp</span>
+                          </button>
+
+                          <select
+                            value={alert.status}
+                            onChange={(e) => handleUpdateProspectStatus(alert.id, e.target.value as any)}
+                            className="bg-slate-800 border border-slate-700 text-[10px] text-slate-300 rounded px-1.5 py-1 cursor-pointer"
+                          >
+                            <option value="PENDING">Menunggu</option>
+                            <option value="CONTACTED">Dihubungi</option>
+                            <option value="CONVERTED">Selesai/Deal</option>
+                            <option value="ARCHIVED">Arsipkan</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProspectAlert(alert.id)}
+                            className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                            title="Hapus peminat ini"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Campaign Duration, Pricing & Potential Total ROI Section */}
@@ -1148,6 +1795,29 @@ ${savingsNote}
             >
               <Smartphone className="w-4 h-4 text-emerald-600" />
               <span>{showQrCode ? 'Tutup QR' : '📱 Scan QR di HP Klien'}</span>
+            </button>
+
+            {/* Availability Alert Button in Footer */}
+            <button
+              id="btn-availability-alert-footer"
+              data-testid="btn-availability-alert-footer"
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('availability-alerts-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                setIsAlertFormOpen(true);
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 font-bold rounded-lg text-xs transition-all cursor-pointer shadow-2xs ${
+                !spot.isAvailable
+                  ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+              }`}
+              title="Daftar ke antrean Availability Alert untuk titik ini"
+            >
+              <Bell className="w-4 h-4" />
+              <span>
+                Availability Alert {spotAlerts.length > 0 ? `(${spotAlerts.length})` : ''}
+              </span>
             </button>
           </div>
 

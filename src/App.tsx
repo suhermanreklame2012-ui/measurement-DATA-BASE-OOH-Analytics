@@ -35,6 +35,7 @@ import { GoogleWorkspaceModal } from './components/GoogleWorkspaceModal';
 import { AiSecurityModal } from './components/AiSecurityModal';
 import { AiProposalOutreachModal } from './components/AiProposalOutreachModal';
 import { TriLayerAiArchitectModal } from './components/TriLayerAiArchitectModal';
+import { AvailabilityQueueModal } from './components/AvailabilityQueueModal';
 import { StrategicMediaPlanner } from './components/StrategicMediaPlanner';
 import { EstimatedRoiCalculator } from './components/EstimatedRoiCalculator';
 import { NotificationCenter } from './components/NotificationCenter';
@@ -69,6 +70,7 @@ export default function App() {
   const [isAiSecurityModalOpen, setIsAiSecurityModalOpen] = useState<boolean>(false);
   const [isAiProposalModalOpen, setIsAiProposalModalOpen] = useState<boolean>(false);
   const [isAiArchitectModalOpen, setIsAiArchitectModalOpen] = useState<boolean>(false);
+  const [isAvailabilityQueueModalOpen, setIsAvailabilityQueueModalOpen] = useState<boolean>(false);
   const [isCrmStandaloneOpen, setIsCrmStandaloneOpen] = useState<boolean>(false);
   const [proposalSpots, setProposalSpots] = useState<MediaSpot[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<MediaSpot | null>(null);
@@ -491,6 +493,7 @@ export default function App() {
         onOpenAiSecurity={() => setIsAiSecurityModalOpen(true)}
         onOpenAiProposal={() => handleOpenAiProposal()}
         onOpenAiArchitect={() => setIsAiArchitectModalOpen(true)}
+        onOpenAvailabilityQueue={() => setIsAvailabilityQueueModalOpen(true)}
         onOpenCrm={() => {
           setActiveTab('crm');
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -588,6 +591,7 @@ export default function App() {
             onBulkUpdateAvailability={handleBulkUpdateAvailability}
             onOpenAiProposal={(chosenSpots) => handleOpenAiProposal(chosenSpots)}
             onOpenRoiCalculator={(spot) => handleOpenRoi(spot)}
+            onOpenAvailabilityQueue={() => setIsAvailabilityQueueModalOpen(true)}
             isAdmin={isAdminAuthenticated}
             onRequestAdminLogin={handleRequestAdminLogin}
           />
@@ -735,6 +739,14 @@ export default function App() {
         isOpen={isAiArchitectModalOpen}
         onClose={() => setIsAiArchitectModalOpen(false)}
         spots={spots}
+        isAdmin={isAdminAuthenticated}
+      />
+
+      <AvailabilityQueueModal
+        isOpen={isAvailabilityQueueModalOpen}
+        onClose={() => setIsAvailabilityQueueModalOpen(false)}
+        spots={spots}
+        onSelectSpot={(spot) => setSelectedSpot(spot)}
         isAdmin={isAdminAuthenticated}
       />
 

@@ -356,6 +356,63 @@ export const MediaTable: React.FC<MediaTableProps> = ({
 
   const handleExportFilteredCSV = handleExportToExcel;
 
+  // Export spots to JSON for local backup or data migration
+  const handleExportToJSON = (targetCustomSpots?: MediaSpot[]) => {
+    const rawTarget = targetCustomSpots || (sortedSpots.length > 0 ? sortedSpots : spots);
+    if (!rawTarget || rawTarget.length === 0) return;
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const availableCount = rawTarget.filter((s) => s.isAvailable).length;
+    const bookedCount = rawTarget.length - availableCount;
+    const totalMonthlyValue = rawTarget.reduce((acc, s) => acc + (s.pricing?.oneMonth || 0), 0);
+    const totalDailyImpressions = rawTarget.reduce((acc, s) => acc + (s.dailyImpressions || 0), 0);
+    const totalDailyTraffic = rawTarget.reduce((acc, s) => acc + (s.dailyTraffic || 0), 0);
+
+    const backupPayload = {
+      system: 'OOH & DOOH Jabar Analytics',
+      exportType: targetCustomSpots ? 'selected_spots_backup' : 'full_inventory_backup',
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      exportedBy: isAdmin ? 'Administrator' : 'Pengguna Publik',
+      totalSpots: rawTarget.length,
+      metricsSummary: {
+        totalMonthlyInventoryValue: totalMonthlyValue,
+        totalDailyImpressions,
+        totalDailyTraffic,
+        availableSpots: availableCount,
+        bookedSpots: bookedCount
+      },
+      spots: rawTarget
+    };
+
+    const jsonString = JSON.stringify(backupPayload, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const filename = targetCustomSpots 
+      ? `OOH_Jabar_Selected_Spots_Backup_${timestamp}.json`
+      : `OOH_Jabar_Inventory_Backup_${timestamp}.json`;
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    addNotification({
+      title: 'Export to JSON Berhasil',
+      message: `${rawTarget.length} data inventaris media berhasil diunduh ke berkas "${filename}" untuk backup lokal & migrasi.`,
+      type: 'create'
+    });
+  };
+
+  const handleExportSelectedJSON = () => {
+    if (selectedIds.size === 0) return;
+    const selectedSpots = spots.filter((s) => selectedIds.has(s.id));
+    handleExportToJSON(selectedSpots);
+  };
+
   // Compute stats of current selection
   const selectedSpotsList = useMemo(() => {
     return spots.filter((s) => selectedIds.has(s.id));
@@ -654,6 +711,31 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               <span>Export to Excel ({spots.length})</span>
             </button>
 
+            {/* Export to JSON (Local Backup & Migration) */}
+            <button
+              id="btn-export-to-json"
+              data-testid="btn-export-to-json"
+              type="button"
+              onClick={() => {
+                if (!isAdmin && onRequestAdminLogin) {
+                  onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengunduh berkas backup JSON inventaris media.');
+                  return;
+                }
+                handleExportToJSON();
+              }}
+              disabled={spots.length === 0}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 active:scale-95 font-semibold rounded-lg border shadow-2xs text-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer ${
+                isAdmin
+                  ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border-slate-700 hover:border-amber-400/50'
+                  : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+              title={isAdmin ? `Unduh seluruh ${spots.length} data inventaris media ke format .json untuk backup lokal atau migrasi data` : "Unduh data inventaris ke format .json (Perlu Akses Admin)"}
+            >
+              <FileDown className="w-3.5 h-3.5 text-amber-400" />
+              <span>Export to JSON ({spots.length})</span>
+              {!isAdmin && <span className="text-[10px] bg-slate-900/80 px-1 py-0.2 rounded text-slate-400 font-normal">Admin</span>}
+            </button>
+
             {/* Add New Spot Action */}
             {onAddSpot && (
               <button
@@ -793,6 +875,18 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Export Terpilih to Excel ({selectedIds.size})</span>
+              </button>
+
+              {/* Export Selected to JSON */}
+              <button
+                id="btn-export-selected-json"
+                data-testid="btn-export-selected-json"
+                onClick={handleExportSelectedJSON}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold rounded-lg text-xs transition-colors border border-slate-700 active:scale-95 cursor-pointer shadow-2xs"
+                title="Unduh data titik terpilih ke format berkas .json untuk backup lokal & migrasi data"
+              >
+                <FileDown className="w-3.5 h-3.5 text-amber-400" />
+                <span>Export Terpilih to JSON ({selectedIds.size})</span>
               </button>
 
               {/* Bulk Delete Selected Spots */}

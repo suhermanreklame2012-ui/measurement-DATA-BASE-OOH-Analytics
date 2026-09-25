@@ -19,7 +19,8 @@ import {
   Calculator,
   Sparkles,
   TrendingUp,
-  Briefcase
+  Briefcase,
+  Cpu
 } from 'lucide-react';
 import { MediaSpot, NotificationLog } from '../types/ooh';
 import { formatCompactNumber } from '../utils/formatters';
@@ -35,6 +36,7 @@ interface HeaderProps {
   onOpenReport: () => void;
   onOpenAiSecurity: () => void;
   onOpenAiProposal: () => void;
+  onOpenAiArchitect?: () => void;
   onOpenCrm?: () => void;
   onOpenEstimatedRoi?: () => void;
   onToggleNotif: () => void;
@@ -57,6 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenReport,
   onOpenAiSecurity,
   onOpenAiProposal,
+  onOpenAiArchitect,
   onOpenCrm,
   onOpenEstimatedRoi,
   onToggleNotif,
@@ -183,6 +186,23 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="tracking-tight font-bold">
                 <span className="sm:hidden">CRM</span>
                 <span className="hidden sm:inline">Pipeline CRM</span>
+              </span>
+            </button>
+
+            {/* AI ARCHITECT 3-LAPIS HUB */}
+            <button
+              type="button"
+              id="main-header-ai-architect-btn"
+              onClick={() => {
+                if (onOpenAiArchitect) onOpenAiArchitect();
+              }}
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm cursor-pointer select-none bg-gradient-to-r from-indigo-950/90 via-slate-800 to-slate-800 hover:from-indigo-900 hover:to-slate-700 text-indigo-200 hover:text-white border-indigo-500/50"
+              title="Tri-Layer AI Architecture Center (CTO + Business Agent + Automation Engineer)"
+            >
+              <Cpu className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+              <span className="tracking-tight font-bold">
+                <span className="sm:hidden">AI Architect</span>
+                <span className="hidden sm:inline">AI Architect Hub</span>
               </span>
             </button>
 
@@ -450,11 +470,39 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   </div>
 
-                  {/* 4. Sistem Keamanan & Integritas Data */}
+                    {/* 4. Sistem Keamanan & Integritas Data */}
                   <div className="p-2 space-y-1">
                     <div className="px-2 pt-1 pb-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Pengawasan Sistem
+                      Arsitektur & Pengawasan
                     </div>
+
+                    {/* Tri-Layer AI Architect Center */}
+                    <button
+                      type="button"
+                      id="menu-tri-layer-architect-btn"
+                      onClick={() => {
+                        setIsMasterMenuOpen(false);
+                        if (onOpenAiArchitect) onOpenAiArchitect();
+                      }}
+                      className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left hover:bg-slate-800/80 transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                        <Cpu className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors">
+                            AI Architect 3-Lapis
+                          </span>
+                          <span className="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 px-1.5 py-0.2 rounded border border-indigo-500/30">
+                            CTO+n8n
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          Arsitektur sistem, blueprint 15 bagian & n8n JSON
+                        </p>
+                      </div>
+                    </button>
 
                     <button
                       type="button"

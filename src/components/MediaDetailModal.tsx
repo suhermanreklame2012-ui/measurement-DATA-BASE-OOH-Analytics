@@ -305,6 +305,18 @@ ${savingsNote}
               </button>
             )}
 
+            {/* Share via WhatsApp (Header Button) */}
+            <button
+              id="btn-share-via-whatsapp-header"
+              type="button"
+              onClick={() => openSpotDirectWhatsApp(spot)}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Share via WhatsApp: Bagikan spesifikasi titik reklame ini ke calon klien via WhatsApp"
+            >
+              <MessageCircle className="w-3.5 h-3.5 fill-slate-950 text-[#25D366]" />
+              <span className="hidden sm:inline">Share via WhatsApp</span>
+            </button>
+
             {/* Copy Shareable Link (Header Button) */}
             <button
               id="btn-copy-shareable-link-header"
@@ -1054,14 +1066,16 @@ ${savingsNote}
         {/* Modal Footer */}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Direct WhatsApp Web button */}
+            {/* Share via WhatsApp button */}
             <button
-              onClick={() => openSpotDirectWhatsApp(spot, true)}
+              id="btn-share-via-whatsapp-footer"
+              type="button"
+              onClick={() => openSpotDirectWhatsApp(spot)}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-bold rounded-lg text-xs shadow-sm shadow-emerald-950/20 transition-all active:scale-95 cursor-pointer"
-              title="Buka langsung di WhatsApp Web (web.whatsapp.com) dengan rincian lengkap ke nomor 0878-2224-8975 atas nama Suherman"
+              title="Share via WhatsApp: Bagikan spesifikasi titik reklame ini langsung ke calon klien via WhatsApp"
             >
               <MessageCircle className="w-4 h-4 fill-slate-950 text-[#25D366]" />
-              <span>Chat WhatsApp Web</span>
+              <span>Share via WhatsApp</span>
             </button>
 
             {onOpenAiProposal && (

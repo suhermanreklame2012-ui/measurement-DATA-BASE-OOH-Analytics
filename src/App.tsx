@@ -34,6 +34,7 @@ import { AddEditSpotModal } from './components/AddEditSpotModal';
 import { GoogleWorkspaceModal } from './components/GoogleWorkspaceModal';
 import { AiSecurityModal } from './components/AiSecurityModal';
 import { AiProposalOutreachModal } from './components/AiProposalOutreachModal';
+import { TriLayerAiArchitectModal } from './components/TriLayerAiArchitectModal';
 import { StrategicMediaPlanner } from './components/StrategicMediaPlanner';
 import { EstimatedRoiCalculator } from './components/EstimatedRoiCalculator';
 import { NotificationCenter } from './components/NotificationCenter';
@@ -67,6 +68,7 @@ export default function App() {
   const [spotToEdit, setSpotToEdit] = useState<MediaSpot | null>(null);
   const [isAiSecurityModalOpen, setIsAiSecurityModalOpen] = useState<boolean>(false);
   const [isAiProposalModalOpen, setIsAiProposalModalOpen] = useState<boolean>(false);
+  const [isAiArchitectModalOpen, setIsAiArchitectModalOpen] = useState<boolean>(false);
   const [isCrmStandaloneOpen, setIsCrmStandaloneOpen] = useState<boolean>(false);
   const [proposalSpots, setProposalSpots] = useState<MediaSpot[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<MediaSpot | null>(null);
@@ -488,6 +490,7 @@ export default function App() {
         onOpenReport={() => setIsReportModalOpen(true)}
         onOpenAiSecurity={() => setIsAiSecurityModalOpen(true)}
         onOpenAiProposal={() => handleOpenAiProposal()}
+        onOpenAiArchitect={() => setIsAiArchitectModalOpen(true)}
         onOpenCrm={() => {
           setActiveTab('crm');
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -726,6 +729,13 @@ export default function App() {
         allSpots={spots}
         onUpdateSelectedSpots={(updated) => setProposalSpots(updated)}
         onOpenStandaloneCrm={() => setIsCrmStandaloneOpen(true)}
+      />
+
+      <TriLayerAiArchitectModal
+        isOpen={isAiArchitectModalOpen}
+        onClose={() => setIsAiArchitectModalOpen(false)}
+        spots={spots}
+        isAdmin={isAdminAuthenticated}
       />
 
       {/* Standalone CRM Pipeline View ("03 Bisa dipakai sendiri") */}

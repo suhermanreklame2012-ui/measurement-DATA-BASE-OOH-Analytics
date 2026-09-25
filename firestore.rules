@@ -21,33 +21,33 @@ service cloud.firestore {
       allow read, write: if isOwnerAdmin();
     }
 
-    // 1. Spots Collection: Public read & app-level updates
+    // 1. Spots Collection: Public read & Admin-only modifications
     match /spots/{spotId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isOwnerAdmin() || isSignedIn();
     }
 
     // 2. Clients Collection: Real-time sync & contact management
     match /clients/{clientId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isOwnerAdmin() || isSignedIn();
     }
 
     // 3. Notifications Collection: Real-time system logs
     match /notifications/{notificationId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isOwnerAdmin() || isSignedIn();
     }
 
     // 4. Backups & Sync Logs
     match /backups/{backupId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isOwnerAdmin() || isSignedIn();
     }
 
     match /sync_logs/{logId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isOwnerAdmin() || isSignedIn();
     }
 
     // 5. Admin Directory

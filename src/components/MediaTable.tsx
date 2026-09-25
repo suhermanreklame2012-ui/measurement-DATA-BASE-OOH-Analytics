@@ -63,6 +63,8 @@ interface MediaTableProps {
   onOpenRoiCalculator?: (spot: MediaSpot) => void;
   filter?: FilterState;
   onSelectRegion?: (region: string) => void;
+  isAdmin?: boolean;
+  onRequestAdminLogin?: (reason?: string) => void;
 }
 
 type SortField = 'no' | 'name' | 'city' | 'dailyImpressions' | 'dailyTraffic' | 'oneMonthPrice';
@@ -81,7 +83,9 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   onOpenAiProposal,
   onOpenRoiCalculator,
   filter,
-  onSelectRegion
+  onSelectRegion,
+  isAdmin = false,
+  onRequestAdminLogin
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [sortField, setSortField] = useState<SortField>('dailyImpressions');
@@ -271,6 +275,12 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   // Bulk update availability handler
   const handleBulkSetStatus = (isAvailable: boolean) => {
     if (selectedIds.size === 0) return;
+    if (!isAdmin) {
+      if (onRequestAdminLogin) {
+        onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengubah status ketersediaan titik reklame secara massal.');
+      }
+      return;
+    }
     const idsArray = Array.from(selectedIds);
     onBulkUpdateAvailability(idsArray, isAvailable);
   };
@@ -591,12 +601,23 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               <button
                 id="btn-add-new-spot-table"
                 type="button"
-                onClick={onAddSpot}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold rounded-lg border border-emerald-500 shadow-sm text-xs transition-all cursor-pointer"
-                title="Tambah Titik Media Baru ke Database"
+                onClick={() => {
+                  if (!isAdmin && onRequestAdminLogin) {
+                    onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menambahkan titik reklame baru.');
+                    return;
+                  }
+                  onAddSpot();
+                }}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 active:scale-95 text-white font-bold rounded-lg border shadow-sm text-xs transition-all cursor-pointer ${
+                  isAdmin 
+                    ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-500' 
+                    : 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-slate-200'
+                }`}
+                title={isAdmin ? "Tambah Titik Media Baru ke Database" : "Tambah Titik Media (Perlu Akses Admin)"}
               >
                 <Plus className="w-3.5 h-3.5 text-white" />
                 <span>+ Tambah Titik</span>
+                {!isAdmin && <span className="text-[10px] bg-slate-800 px-1 py-0.2 rounded text-slate-300 font-normal">Admin</span>}
               </button>
             )}
           </div>
@@ -717,7 +738,15 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                 <button
                   id="btn-bulk-delete-spots"
                   type="button"
-                  onClick={() => setIsConfirmBulkDeleteOpen(true)}
+                  onClick={() => {
+                    if (!isAdmin) {
+                      if (onRequestAdminLogin) {
+                        onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menghapus data titik reklame.');
+                      }
+                      return;
+                    }
+                    setIsConfirmBulkDeleteOpen(true);
+                  }}
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs transition-colors shadow-xs border border-rose-400/50 active:scale-95 cursor-pointer"
                   title={`Hapus ${selectedIds.size} titik media terpilih dari database`}
                 >
@@ -1006,7 +1035,15 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                         <div className="relative inline-block group/status">
                           <button
                             type="button"
-                            onClick={() => onToggleAvailability(spot.id)}
+                            onClick={() => {
+                              if (!isAdmin) {
+                                if (onRequestAdminLogin) {
+                                  onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk merubah status ketersediaan titik reklame.');
+                                }
+                                return;
+                              }
+                              onToggleAvailability(spot.id);
+                            }}
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all duration-150 active:scale-95 cursor-pointer shadow-2xs border ${
                               spot.isAvailable
                                 ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-emerald-200 hover:border-emerald-300'
@@ -1028,7 +1065,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
 
                           {/* Action tooltip for quick interaction */}
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/status:flex items-center gap-1 z-30 px-2 py-1 bg-slate-900/95 text-white text-[10px] font-medium rounded-md shadow-lg whitespace-nowrap pointer-events-none">
-                            <span>Aksi Cepat: Klik untuk ubah ke {spot.isAvailable ? 'Tersewa' : 'Tersedia'}</span>
+                            <span>{isAdmin ? `Aksi Cepat: Klik untuk ubah ke ${spot.isAvailable ? 'Tersewa' : 'Tersedia'}` : `Status: ${spot.isAvailable ? 'Tersedia' : 'Tersewa'} (Klik untuk login Admin)`}</span>
                             <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-0.5 border-4 border-transparent border-t-slate-900/95" />
                           </div>
                         </div>
@@ -1039,9 +1076,21 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                         <div className="flex items-center justify-center gap-1">
                           {onEditSpot && (
                             <button
-                              onClick={() => onEditSpot(spot)}
-                              className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                              title="Edit Data Titik Media"
+                              onClick={() => {
+                                if (!isAdmin) {
+                                  if (onRequestAdminLogin) {
+                                    onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengedit data titik reklame ini.');
+                                  }
+                                  return;
+                                }
+                                onEditSpot(spot);
+                              }}
+                              className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                                isAdmin 
+                                  ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50' 
+                                  : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                              }`}
+                              title={isAdmin ? "Edit Data Titik Media" : "Edit Data Titik Media (Perlu Login Admin)"}
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
@@ -1049,9 +1098,21 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                           {onDeleteSpot && (
                             <button
                               type="button"
-                              onClick={() => setSpotToDelete(spot)}
-                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                              title="Hapus Titik Media dari Database"
+                              onClick={() => {
+                                if (!isAdmin) {
+                                  if (onRequestAdminLogin) {
+                                    onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menghapus data titik reklame ini.');
+                                  }
+                                  return;
+                                }
+                                setSpotToDelete(spot);
+                              }}
+                              className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                                isAdmin 
+                                  ? 'text-rose-500 hover:text-rose-700 hover:bg-rose-50' 
+                                  : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                              }`}
+                              title={isAdmin ? "Hapus Titik Media dari Database" : "Hapus Titik Media (Perlu Login Admin)"}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -1204,13 +1265,21 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                         <div className="absolute top-2.5 right-2.5 z-10">
                           <button
                             type="button"
-                            onClick={() => onToggleAvailability(spot.id)}
+                            onClick={() => {
+                              if (!isAdmin) {
+                                if (onRequestAdminLogin) {
+                                  onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk merubah status ketersediaan titik reklame.');
+                                }
+                                return;
+                              }
+                              onToggleAvailability(spot.id);
+                            }}
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold backdrop-blur-md transition-all active:scale-95 cursor-pointer border shadow-sm ${
                               spot.isAvailable
                                 ? 'bg-emerald-500/90 text-white border-emerald-400 hover:bg-emerald-600'
                                 : 'bg-rose-500/90 text-white border-rose-400 hover:bg-rose-600'
                             }`}
-                            title={`Status: ${spot.isAvailable ? 'Tersedia' : 'Tersewa'}. Klik untuk mengubah status.`}
+                            title={isAdmin ? `Status: ${spot.isAvailable ? 'Tersedia' : 'Tersewa'}. Klik untuk mengubah status.` : `Status: ${spot.isAvailable ? 'Tersedia' : 'Tersewa'} (Klik untuk login Admin)`}
                           >
                             {spot.isAvailable ? (
                               <>
@@ -1364,9 +1433,21 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                             {onEditSpot && (
                               <button
                                 type="button"
-                                onClick={() => onEditSpot(spot)}
-                                className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                                title="Edit Data Titik"
+                                onClick={() => {
+                                  if (!isAdmin) {
+                                    if (onRequestAdminLogin) {
+                                      onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengedit data titik reklame ini.');
+                                    }
+                                    return;
+                                  }
+                                  onEditSpot(spot);
+                                }}
+                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                  isAdmin
+                                    ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                                    : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                }`}
+                                title={isAdmin ? "Edit Data Titik" : "Edit Data Titik (Perlu Login Admin)"}
                               >
                                 <Pencil className="w-4 h-4" />
                               </button>
@@ -1375,9 +1456,21 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                             {onDeleteSpot && (
                               <button
                                 type="button"
-                                onClick={() => setSpotToDelete(spot)}
-                                className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Hapus Titik Media dari Database"
+                                onClick={() => {
+                                  if (!isAdmin) {
+                                    if (onRequestAdminLogin) {
+                                      onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menghapus data titik reklame ini.');
+                                    }
+                                    return;
+                                  }
+                                  setSpotToDelete(spot);
+                                }}
+                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                  isAdmin
+                                    ? 'text-rose-500 hover:text-rose-700 hover:bg-rose-50'
+                                    : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                                }`}
+                                title={isAdmin ? "Hapus Titik Media dari Database" : "Hapus Titik Media (Perlu Login Admin)"}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>

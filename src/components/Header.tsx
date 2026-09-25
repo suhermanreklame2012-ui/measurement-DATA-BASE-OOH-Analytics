@@ -42,6 +42,10 @@ interface HeaderProps {
   activeTab: 'map' | 'analytics' | 'table' | 'planner' | 'roi' | 'crm';
   setActiveTab: (tab: 'map' | 'analytics' | 'table' | 'planner' | 'roi' | 'crm') => void;
   isFirestoreConnected?: boolean;
+  isAdmin?: boolean;
+  onOpenLogin?: (reason?: string) => void;
+  adminEmail?: string;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -59,7 +63,11 @@ export const Header: React.FC<HeaderProps> = ({
   isNotifOpen,
   activeTab,
   setActiveTab,
-  isFirestoreConnected = true
+  isFirestoreConnected = true,
+  isAdmin = false,
+  onOpenLogin,
+  adminEmail,
+  onLogout
 }) => {
   const totalSpots = spots.length;
   const availableSpots = spots.filter(s => s.isAvailable).length;
@@ -235,6 +243,10 @@ export const Header: React.FC<HeaderProps> = ({
                       id="menu-add-spot-btn"
                       onClick={() => {
                         setIsMasterMenuOpen(false);
+                        if (!isAdmin && onOpenLogin) {
+                          onOpenLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menambahkan titik reklame baru.');
+                          return;
+                        }
                         onOpenAddSpot();
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/40 hover:border-emerald-500/60 transition-all group"
@@ -248,7 +260,7 @@ export const Header: React.FC<HeaderProps> = ({
                             Tambah Titik Media
                           </span>
                           <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/30 px-1.5 py-0.2 rounded border border-emerald-500/40">
-                            + Baru
+                            {isAdmin ? '+ Baru' : 'Kunci Admin'}
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-300 truncate">
@@ -491,14 +503,52 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
 
-            {/* Logout Admin Button */}
-            <button
-              onClick={() => logoutAdmin()}
-              className="p-2 ml-1 text-slate-300 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors relative"
-              title="Keluar (Logout) sebagai Superadmin"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            {/* Auth Controls: Masuk Admin vs Logout Superadmin */}
+            {isAdmin ? (
+              <div className="flex items-center gap-1.5 pl-1">
+                <div 
+                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-semibold"
+                  title={`Login sebagai Superadmin: ${adminEmail || 'suherman.Reklame2012@gmail.com'}`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-[11px] font-bold">Admin:</span>
+                  <span className="text-[11px] text-slate-200 max-w-[120px] truncate">
+                    {adminEmail ? adminEmail.split('@')[0] : 'Suherman'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onLogout) {
+                      onLogout();
+                    } else {
+                      logoutAdmin();
+                    }
+                  }}
+                  className="px-2.5 py-1.5 text-xs text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-600 border border-rose-500/30 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs font-bold"
+                  title="Keluar (Logout) sebagai Superadmin"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Keluar</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 pl-1">
+                <span className="hidden md:inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  Publik
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onOpenLogin && onOpenLogin('Silakan masuk sebagai Admin untuk mengelola, menambah, dan mengedit data inventaris reklame.')}
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm cursor-pointer select-none active:scale-95"
+                  title="Masuk sebagai Administrator untuk mengedit & merubah data"
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-200 flex-shrink-0" />
+                  <span>Masuk Admin</span>
+                </button>
+              </div>
+            )}
 
           </div>
 

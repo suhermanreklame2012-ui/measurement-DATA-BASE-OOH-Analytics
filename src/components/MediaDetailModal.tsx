@@ -53,6 +53,8 @@ interface MediaDetailModalProps {
   onEditSpot?: (spot: MediaSpot) => void;
   onDeleteSpot?: (spotId: string) => void;
   onOpenRoiCalculator?: (spot: MediaSpot) => void;
+  isAdmin?: boolean;
+  onRequestAdminLogin?: (reason?: string) => void;
 }
 
 export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
@@ -62,7 +64,9 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
   onOpenAiProposal,
   onEditSpot,
   onDeleteSpot,
-  onOpenRoiCalculator
+  onOpenRoiCalculator,
+  isAdmin = false,
+  onRequestAdminLogin
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
@@ -252,11 +256,21 @@ ${savingsNote}
               <button
                 type="button"
                 onClick={() => {
+                  if (!isAdmin) {
+                    if (onRequestAdminLogin) {
+                      onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengedit data titik reklame ini.');
+                    }
+                    return;
+                  }
                   onClose();
                   onEditSpot(spot);
                 }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 transition-all cursor-pointer"
-                title="Edit data titik media ini"
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                  isAdmin 
+                    ? 'bg-slate-800 hover:bg-slate-700 text-blue-400 border-slate-700' 
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 border-slate-700'
+                }`}
+                title={isAdmin ? "Edit data titik media ini" : "Edit data titik media ini (Perlu Akses Admin)"}
               >
                 <Pencil className="w-3.5 h-3.5 text-blue-400" />
                 <span className="hidden sm:inline">Edit</span>
@@ -268,13 +282,23 @@ ${savingsNote}
               <button
                 type="button"
                 onClick={() => {
+                  if (!isAdmin) {
+                    if (onRequestAdminLogin) {
+                      onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menghapus titik reklame.');
+                    }
+                    return;
+                  }
                   if (window.confirm(`Apakah Anda yakin ingin menghapus titik media "${spot.name}" (${spot.id}) dari database?`)) {
                     onDeleteSpot(spot.id);
                     onClose();
                   }
                 }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-slate-800 hover:bg-rose-950 text-rose-400 border border-slate-700 hover:border-rose-700 transition-all cursor-pointer"
-                title="Hapus titik media ini dari database"
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                  isAdmin
+                    ? 'bg-slate-800 hover:bg-rose-950 text-rose-400 border-slate-700 hover:border-rose-700'
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 border-slate-700'
+                }`}
+                title={isAdmin ? "Hapus titik media ini dari database" : "Hapus titik media ini (Perlu Akses Admin)"}
               >
                 <Trash2 className="w-3.5 h-3.5 text-rose-400" />
                 <span className="hidden sm:inline">Hapus</span>
@@ -532,16 +556,27 @@ ${savingsNote}
                 <span className="text-slate-400 text-[11px]">Status Ketersediaan:</span>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <button
-                    onClick={() => onToggleAvailability(spot.id)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    onClick={() => {
+                      if (!isAdmin) {
+                        if (onRequestAdminLogin) {
+                          onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk merubah status ketersediaan titik reklame.');
+                        }
+                        return;
+                      }
+                      onToggleAvailability(spot.id);
+                    }}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
                       spot.isAvailable
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-rose-100 text-rose-800'
+                        ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                        : 'bg-rose-100 text-rose-800 hover:bg-rose-200'
                     }`}
+                    title={isAdmin ? "Klik untuk ubah status" : "Status ketersediaan (Perlu Login Admin untuk mengubah)"}
                   >
                     {spot.isAvailable ? 'Tersedia (Ready)' : 'Tersewa (Sold Out)'}
                   </button>
-                  <span className="text-[10px] text-slate-400">(klik untuk ubah)</span>
+                  <span className="text-[10px] text-slate-400">
+                    {isAdmin ? '(klik untuk ubah)' : '(publik - lihat saja)'}
+                  </span>
                 </div>
               </div>
             </div>

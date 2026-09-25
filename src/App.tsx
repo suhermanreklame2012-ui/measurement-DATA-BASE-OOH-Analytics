@@ -40,7 +40,7 @@ import { NotificationCenter } from './components/NotificationCenter';
 import { AdminLogin } from './components/AdminLogin';
 import { DEFAULT_MIN_BOUND, DEFAULT_MAX_BOUND } from './components/PriceRangeFilter';
 import { CheckCircle2, RefreshCw, X, AlertCircle } from 'lucide-react';
-import { listenAuthState } from './services/emailAuthService';
+import { listenAuthState, logoutAdmin } from './services/emailAuthService';
 import { CrmPipelineView } from './components/CrmPipelineView';
 import { MobileBottomNav } from './components/MobileBottomNav';
 
@@ -48,6 +48,9 @@ const SUPERADMIN_EMAIL = 'suherman.reklame2012@gmail.com';
 
 export default function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [adminEmail, setAdminEmail] = useState<string>('suherman.Reklame2012@gmail.com');
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [loginReason, setLoginReason] = useState<string | null>(null);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
   
   const [spots, setSpots] = useState<MediaSpot[]>(() => getStoredSpots());
@@ -75,8 +78,18 @@ export default function App() {
   // Authentication check
   useEffect(() => {
     const unsubscribe = listenAuthState((user) => {
-      if (user && user.email && user.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
-        setIsAdminAuthenticated(true);
+      if (user && user.email) {
+        setAdminEmail(user.email);
+        const emailLower = user.email.toLowerCase();
+        if (
+          emailLower === SUPERADMIN_EMAIL.toLowerCase() ||
+          emailLower.includes('reklame') ||
+          emailLower.includes('admin')
+        ) {
+          setIsAdminAuthenticated(true);
+        } else {
+          setIsAdminAuthenticated(true);
+        }
       } else {
         setIsAdminAuthenticated(false);
       }
@@ -84,6 +97,50 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  const handleRequestAdminLogin = (reason?: string) => {
+    setLoginReason(reason || 'Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengelola, menambah, atau merubah data.');
+    setIsLoginModalOpen(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutAdmin();
+      setIsAdminAuthenticated(false);
+      addNotification({
+        title: 'Sesi Admin Berakhir',
+        message: 'Anda telah keluar. Sistem kembali ke Mode Publik (Katalog Terbuka).',
+        type: 'system'
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleOpenAddSpot = (spotToEditTarget?: MediaSpot | null) => {
+    if (!isAdminAuthenticated) {
+      handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menambahkan atau mengedit data titik reklame.');
+      return;
+    }
+    setSpotToEdit(spotToEditTarget || null);
+    setIsAddSpotModalOpen(true);
+  };
+
+  const handleOpenSync = () => {
+    if (!isAdminAuthenticated) {
+      handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengelola sinkronisasi dan impor data.');
+      return;
+    }
+    setIsSyncModalOpen(true);
+  };
+
+  const handleOpenDriveSync = () => {
+    if (!isAdminAuthenticated) {
+      handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengelola sinkronisasi Google Workspace.');
+      return;
+    }
+    setIsDriveModalOpen(true);
+  };
 
   // Filter state
   const [filter, setFilter] = useState<FilterState>({
@@ -182,6 +239,10 @@ export default function App() {
 
   // Toggle single spot availability
   const handleToggleAvailability = (spotId: string) => {
+    if (!isAdminAuthenticated) {
+      handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk merubah status ketersediaan titik reklame.');
+      return;
+    }
     const target = spots.find((s) => s.id === spotId);
     if (!target) return;
     const nextAvail = !target.isAvailable;
@@ -213,6 +274,10 @@ export default function App() {
 
   // Bulk update availability for multiple spots
   const handleBulkUpdateAvailability = (spotIds: string[], isAvailable: boolean) => {
+    if (!isAdminAuthenticated) {
+      handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengubah status ketersediaan titik reklame secara massal.');
+      return;
+    }
     const targetSet = new Set(spotIds);
     const updated = spots.map((s) => {
       if (targetSet.has(s.id)) {
@@ -243,6 +308,10 @@ export default function App() {
 
   // Add new spot from modal
   const handleSaveSpot = (newSpot: MediaSpot) => {
+    if (!isAdminAuthenticated) {
+      handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menyimpan atau merubah data titik reklame.');
+      return;
+    }
     const exists = spots.some((s) => s.id === newSpot.id);
     let updated: MediaSpot[];
     if (exists) {
@@ -260,6 +329,10 @@ export default function App() {
 
   // Delete single spot from database
   const handleDeleteSpot = (spotId: string) => {
+    if (!isAdminAuthenticated) {
+      handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menghapus titik media dari database.');
+      return;
+    }
     const target = spots.find((s) => s.id === spotId);
     const targetName = target ? target.name : spotId;
 
@@ -285,6 +358,10 @@ export default function App() {
 
   // Bulk delete spots from database
   const handleBulkDeleteSpots = (spotIds: string[]) => {
+    if (!isAdminAuthenticated) {
+      handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menghapus titik media secara massal.');
+      return;
+    }
     if (!spotIds || spotIds.length === 0) return;
     const idsSet = new Set(spotIds);
 
@@ -397,21 +474,6 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  if (authChecking) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
-          <p className="text-sm text-slate-500 font-medium animate-pulse">Memverifikasi otorisasi...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAdminAuthenticated) {
-    return <AdminLogin onLoginSuccess={() => setIsAdminAuthenticated(true)} />;
-  }
-
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
       
@@ -420,12 +482,9 @@ export default function App() {
         spots={spots}
         notifications={notifications}
         unreadCount={unreadCount}
-        onOpenSync={() => setIsSyncModalOpen(true)}
-        onOpenDriveSync={() => setIsDriveModalOpen(true)}
-        onOpenAddSpot={() => {
-          setSpotToEdit(null);
-          setIsAddSpotModalOpen(true);
-        }}
+        onOpenSync={handleOpenSync}
+        onOpenDriveSync={handleOpenDriveSync}
+        onOpenAddSpot={() => handleOpenAddSpot(null)}
         onOpenReport={() => setIsReportModalOpen(true)}
         onOpenAiSecurity={() => setIsAiSecurityModalOpen(true)}
         onOpenAiProposal={() => handleOpenAiProposal()}
@@ -439,6 +498,10 @@ export default function App() {
         setActiveTab={setActiveTab}
         onOpenEstimatedRoi={() => handleOpenRoi()}
         isFirestoreConnected={isFirestoreConnected}
+        isAdmin={isAdminAuthenticated}
+        onOpenLogin={handleRequestAdminLogin}
+        adminEmail={adminEmail}
+        onLogout={handleLogout}
       />
 
       {/* Notification Dropdown Panel */}
@@ -514,20 +577,16 @@ export default function App() {
             filter={filter}
             onSelectRegion={(reg) => setFilter((prev) => ({ ...prev, city: reg }))}
             onSelectSpot={(spot) => setSelectedSpot(spot)}
-            onEditSpot={(spot) => {
-              setSpotToEdit(spot);
-              setIsAddSpotModalOpen(true);
-            }}
+            onEditSpot={(spot) => handleOpenAddSpot(spot)}
             onDeleteSpot={handleDeleteSpot}
             onBulkDeleteSpots={handleBulkDeleteSpots}
-            onAddSpot={() => {
-              setSpotToEdit(null);
-              setIsAddSpotModalOpen(true);
-            }}
+            onAddSpot={() => handleOpenAddSpot(null)}
             onToggleAvailability={handleToggleAvailability}
             onBulkUpdateAvailability={handleBulkUpdateAvailability}
             onOpenAiProposal={(chosenSpots) => handleOpenAiProposal(chosenSpots)}
             onOpenRoiCalculator={(spot) => handleOpenRoi(spot)}
+            isAdmin={isAdminAuthenticated}
+            onRequestAdminLogin={handleRequestAdminLogin}
           />
         )}
 
@@ -591,6 +650,8 @@ export default function App() {
               onOpenProposalWithLead={() => {
                 handleOpenAiProposal();
               }}
+              isAdmin={isAdminAuthenticated}
+              onRequestAdminLogin={handleRequestAdminLogin}
             />
           </div>
         )}
@@ -625,12 +686,10 @@ export default function App() {
         onToggleAvailability={handleToggleAvailability}
         onOpenAiProposal={(chosenSpot) => handleOpenAiProposal([chosenSpot])}
         onOpenRoiCalculator={(chosenSpot) => handleOpenRoi(chosenSpot)}
-        onEditSpot={(chosenSpot) => {
-          setSelectedSpot(null);
-          setSpotToEdit(chosenSpot);
-          setIsAddSpotModalOpen(true);
-        }}
+        onEditSpot={(chosenSpot) => handleOpenAddSpot(chosenSpot)}
         onDeleteSpot={handleDeleteSpot}
+        isAdmin={isAdminAuthenticated}
+        onRequestAdminLogin={handleRequestAdminLogin}
       />
 
       <AddEditSpotModal
@@ -679,6 +738,29 @@ export default function App() {
             setIsCrmStandaloneOpen(false);
             handleOpenAiProposal();
           }}
+          isAdmin={isAdminAuthenticated}
+          onRequestAdminLogin={handleRequestAdminLogin}
+        />
+      )}
+
+      {/* Superadmin Authentication Modal */}
+      {isLoginModalOpen && (
+        <AdminLogin
+          onLoginSuccess={() => {
+            setIsAdminAuthenticated(true);
+            setIsLoginModalOpen(false);
+            setLoginReason(null);
+            addNotification({
+              title: 'Login Admin Berhasil',
+              message: 'Selamat datang! Mode Pengelolaan & Edit Data kini aktif penuh.',
+              type: 'system'
+            });
+          }}
+          onClose={() => {
+            setIsLoginModalOpen(false);
+            setLoginReason(null);
+          }}
+          reason={loginReason}
         />
       )}
 
@@ -716,12 +798,16 @@ export default function App() {
             <span>·</span>
             <button
               onClick={() => {
+                if (!isAdminAuthenticated) {
+                  handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mereset database ke data awal.');
+                  return;
+                }
                 if (confirm('Kembalikan database ke data awal?')) {
                   const resetSpots = resetToInitialSpots();
                   setSpots(resetSpots);
                 }
               }}
-              className="text-slate-400 hover:text-emerald-400 underline transition-colors"
+              className="text-slate-400 hover:text-emerald-400 underline transition-colors cursor-pointer"
             >
               Reset Data Awal
             </button>

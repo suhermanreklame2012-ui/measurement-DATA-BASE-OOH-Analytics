@@ -71,13 +71,17 @@ interface CrmPipelineViewProps {
   onOpenProposalWithLead?: (lead: CrmLead) => void;
   isStandalone?: boolean;
   onCloseStandalone?: () => void;
+  isAdmin?: boolean;
+  onRequestAdminLogin?: (reason?: string) => void;
 }
 
 export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
   allSpots = [],
   onOpenProposalWithLead,
   isStandalone = false,
-  onCloseStandalone
+  onCloseStandalone,
+  isAdmin = false,
+  onRequestAdminLogin
 }) => {
   const [leads, setLeads] = useState<CrmLead[]>(() => getStoredCrmLeads());
   const [clients, setClients] = useState<ClientContact[]>(() => getStoredClients());
@@ -364,8 +368,21 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
     window.open(waUrl, '_blank');
   };
 
+  // Quick move stage handler with admin check
+  const handleMoveLeadStage = (leadId: string, nextStage: CrmStage) => {
+    if (!isAdmin) {
+      if (onRequestAdminLogin) onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk memindahkan tahapan prospek CRM.');
+      return;
+    }
+    updateLeadStage(leadId, nextStage);
+  };
+
   // Open Edit or New Lead
   const handleOpenNewLead = (stage: CrmStage = 'lead_baru') => {
+    if (!isAdmin) {
+      if (onRequestAdminLogin) onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menambahkan prospek penawaran CRM baru.');
+      return;
+    }
     setEditingLead({
       companyName: '',
       contactPerson: '',
@@ -389,12 +406,20 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
   };
 
   const handleEditLead = (lead: CrmLead) => {
+    if (!isAdmin) {
+      if (onRequestAdminLogin) onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengedit prospek CRM.');
+      return;
+    }
     setEditingLead({ ...lead });
     setIsLeadModalOpen(true);
   };
 
   const handleSaveLead = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      if (onRequestAdminLogin) onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menyimpan prospek CRM.');
+      return;
+    }
     if (!editingLead?.companyName || !editingLead?.contactPerson) {
       alert('Nama perusahaan dan nama kontak wajib diisi.');
       return;
@@ -439,6 +464,10 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
   };
 
   const handleDeleteLead = async (id: string, name: string) => {
+    if (!isAdmin) {
+      if (onRequestAdminLogin) onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menghapus prospek CRM.');
+      return;
+    }
     if (confirm(`Apakah Anda yakin ingin menghapus prospek "${name}"?`)) {
       await deleteCrmLead(id);
       if (selectedLeadForDetail?.id === id) {
@@ -450,6 +479,10 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
   // Add Task to Lead
   const handleAddNewTask = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      if (onRequestAdminLogin) onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk menambahkan tugas agenda CRM.');
+      return;
+    }
     if (!selectedLeadForTask || !newTaskTitle.trim()) {
       alert('Pilih prospek dan masukkan judul tugas.');
       return;
@@ -1358,7 +1391,7 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
                                     const stageOrder: CrmStage[] = ['lead_baru', 'follow_up', 'negosiasi', 'won', 'lost'];
                                     const currentIdx = stageOrder.indexOf(lead.stage);
                                     if (currentIdx > 0) {
-                                      updateLeadStage(lead.id, stageOrder[currentIdx - 1]);
+                                      handleMoveLeadStage(lead.id, stageOrder[currentIdx - 1]);
                                     }
                                   }}
                                   className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white"
@@ -1375,9 +1408,9 @@ export const CrmPipelineView: React.FC<CrmPipelineViewProps> = ({
                                     const stageOrder: CrmStage[] = ['lead_baru', 'follow_up', 'negosiasi', 'won', 'lost'];
                                     const currentIdx = stageOrder.indexOf(lead.stage);
                                     if (currentIdx < stageOrder.length - 2) {
-                                      updateLeadStage(lead.id, stageOrder[currentIdx + 1]);
+                                      handleMoveLeadStage(lead.id, stageOrder[currentIdx + 1]);
                                     } else {
-                                      updateLeadStage(lead.id, 'won');
+                                      handleMoveLeadStage(lead.id, 'won');
                                     }
                                   }}
                                   className="p-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold"

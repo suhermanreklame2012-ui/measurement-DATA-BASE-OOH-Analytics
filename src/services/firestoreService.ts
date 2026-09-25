@@ -113,6 +113,33 @@ export async function bulkUpdateAvailabilityInFirestore(
 }
 
 /**
+ * Bulk update multiple spots attributes (availability and/or category/mediaType) using Firestore batch write.
+ */
+export async function bulkUpdateSpotsInFirestore(
+  spotIds: string[],
+  updates: Partial<MediaSpot>
+): Promise<void> {
+  if (!spotIds || spotIds.length === 0) return;
+  try {
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+    const payload = {
+      ...updates,
+      updatedAt: now
+    };
+
+    spotIds.forEach((id) => {
+      const docRef = doc(db, SPOTS_COLLECTION, id);
+      batch.update(docRef, payload);
+    });
+
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, SPOTS_COLLECTION);
+  }
+}
+
+/**
  * Delete a spot from Firestore.
  */
 export async function deleteSpotFromFirestore(spotId: string): Promise<void> {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MediaSpot, FilterState, NotificationLog } from './types/ooh';
+import { MediaSpot, FilterState, NotificationLog, MediaCategory, MediaType } from './types/ooh';
 import { 
   getStoredSpots, 
   saveStoredSpots, 
@@ -17,6 +17,7 @@ import {
   saveSpotToFirestore, 
   updateSpotAvailabilityInFirestore, 
   bulkUpdateAvailabilityInFirestore, 
+  bulkUpdateSpotsInFirestore,
   seedInitialSpotsIfEmpty,
   subscribeToNotifications,
   deleteSpotFromFirestore,
@@ -329,6 +330,72 @@ export default function App() {
     });
   };
 
+  // Bulk update multiple spots (availability, category, mediaType) simultaneously
+  const handleBulkUpdateSpots = (
+    spotIds: string[], 
+    updates: { isAvailable?: boolean; category?: MediaCategory; mediaType?: MediaType }
+  ) => {
+    if (!isAdminAuthenticated) {
+      handleRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengubah status atau kategori titik reklame secara massal.');
+      return;
+    }
+    if (!spotIds || spotIds.length === 0) return;
+    const targetSet = new Set(spotIds);
+
+    const updated = spots.map((s) => {
+      if (targetSet.has(s.id)) {
+        const next: MediaSpot = { ...s };
+        if (updates.isAvailable !== undefined) {
+          next.isAvailable = updates.isAvailable;
+          next.availability = updates.isAvailable ? 'Available' : 'Tersewa / Kontrak';
+        }
+        if (updates.category) {
+          next.category = updates.category;
+        }
+        if (updates.mediaType) {
+          next.mediaType = updates.mediaType;
+        }
+        next.updatedAt = new Date().toISOString();
+        return next;
+      }
+      return s;
+    });
+
+    handleUpdateSpots(updated);
+
+    // Persist to Cloud Firestore
+    const firestoreUpdates: Partial<MediaSpot> = {};
+    if (updates.isAvailable !== undefined) {
+      firestoreUpdates.isAvailable = updates.isAvailable;
+      firestoreUpdates.availability = updates.isAvailable ? 'Available' : 'Tersewa / Kontrak';
+    }
+    if (updates.category) {
+      firestoreUpdates.category = updates.category;
+    }
+    if (updates.mediaType) {
+      firestoreUpdates.mediaType = updates.mediaType;
+    }
+
+    bulkUpdateSpotsInFirestore(spotIds, firestoreUpdates).catch((err) => {
+      console.warn('Firestore bulk update spots fallback:', err);
+    });
+
+    const changedParts: string[] = [];
+    if (updates.isAvailable !== undefined) {
+      changedParts.push(`status ketersediaan menjadi ${updates.isAvailable ? 'Tersedia' : 'Tersewa'}`);
+    }
+    if (updates.mediaType) {
+      changedParts.push(`kategori menjadi "${updates.mediaType}" (${updates.category === 'DOOH_DIGITAL' ? 'DOOH Digital' : 'OOH Statis'})`);
+    }
+
+    addNotification({
+      title: 'Pembaruan Massal Berhasil',
+      message: `Berhasil memperbarui ${spotIds.length} titik reklame: ${changedParts.join(' & ')}.`,
+      type: 'update',
+      itemCount: spotIds.length
+    });
+  };
+
   // Add new spot from modal
   const handleSaveSpot = (newSpot: MediaSpot) => {
     if (!isAdminAuthenticated) {
@@ -610,6 +677,7 @@ export default function App() {
             onAddSpot={() => handleOpenAddSpot(null)}
             onToggleAvailability={handleToggleAvailability}
             onBulkUpdateAvailability={handleBulkUpdateAvailability}
+            onBulkUpdateSpots={handleBulkUpdateSpots}
             onOpenAiProposal={(chosenSpots) => handleOpenAiProposal(chosenSpots)}
             onOpenRoiCalculator={(spot) => handleOpenRoi(spot)}
             onOpenAvailabilityQueue={() => setIsAvailabilityQueueModalOpen(true)}

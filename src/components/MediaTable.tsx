@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { MediaSpot, ClientContact, ProposalDuration, FilterState } from '../types/ooh';
+import { MediaSpot, ClientContact, ProposalDuration, FilterState, MediaCategory, MediaType } from '../types/ooh';
 import { PerformanceOverview } from './PerformanceOverview';
 import { SpotComparisonView } from './SpotComparisonView';
 import { formatIDR, formatCompactNumber, formatCompactIDR } from '../utils/formatters';
@@ -50,7 +50,11 @@ import {
   Plus,
   SlidersHorizontal,
   Flame,
-  Bell
+  Bell,
+  Sliders,
+  Tag,
+  CheckCheck,
+  RefreshCw
 } from 'lucide-react';
 import { calculateDemandMetrics } from '../services/availabilityAlertService';
 
@@ -63,6 +67,10 @@ interface MediaTableProps {
   onAddSpot?: () => void;
   onToggleAvailability: (spotId: string) => void;
   onBulkUpdateAvailability: (spotIds: string[], isAvailable: boolean) => void;
+  onBulkUpdateSpots?: (
+    spotIds: string[], 
+    updates: { isAvailable?: boolean; category?: MediaCategory; mediaType?: MediaType }
+  ) => void;
   onOpenAiProposal?: (spots: MediaSpot[]) => void;
   onOpenRoiCalculator?: (spot: MediaSpot) => void;
   onOpenAvailabilityQueue?: () => void;
@@ -85,6 +93,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   onAddSpot,
   onToggleAvailability,
   onBulkUpdateAvailability,
+  onBulkUpdateSpots,
   onOpenAiProposal,
   onOpenRoiCalculator,
   onOpenAvailabilityQueue,
@@ -120,6 +129,12 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [comparedSpotIds, setComparedSpotIds] = useState<string[]>([]);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState<boolean>(false);
+
+  // Bulk Edit Modal State (Ubah Status Ketersediaan & Kategori Massal)
+  const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState<boolean>(false);
+  const [bulkAvailabilityChoice, setBulkAvailabilityChoice] = useState<'UNCHANGED' | 'AVAILABLE' | 'BOOKED'>('UNCHANGED');
+  const [bulkCategoryChoice, setBulkCategoryChoice] = useState<string>('UNCHANGED');
+  const [isExecutingBulkEdit, setIsExecutingBulkEdit] = useState<boolean>(false);
 
   // Deletion Confirmation States
   const [spotToDelete, setSpotToDelete] = useState<MediaSpot | null>(null);
@@ -305,7 +320,78 @@ export const MediaTable: React.FC<MediaTableProps> = ({
       return;
     }
     const idsArray = Array.from(selectedIds);
-    onBulkUpdateAvailability(idsArray, isAvailable);
+    if (onBulkUpdateSpots) {
+      onBulkUpdateSpots(idsArray, { isAvailable });
+    } else {
+      onBulkUpdateAvailability(idsArray, isAvailable);
+    }
+  };
+
+  // Bulk update category handler (Quick inline select)
+  const handleQuickBulkCategory = (rawChoice: string) => {
+    if (!rawChoice || rawChoice === 'UNCHANGED' || !rawChoice.includes('|')) return;
+    if (!isAdmin) {
+      if (onRequestAdminLogin) {
+        onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengubah kategori beberapa titik reklame sekaligus.');
+      }
+      return;
+    }
+    const [c, m] = rawChoice.split('|');
+    const spotIds = Array.from(selectedIds);
+    if (onBulkUpdateSpots) {
+      onBulkUpdateSpots(spotIds, {
+        category: c as MediaCategory,
+        mediaType: m as MediaType
+      });
+    }
+  };
+
+  // Comprehensive bulk execute handler (from modal)
+  const handleExecuteBulkEdit = () => {
+    if (selectedIds.size === 0) return;
+    if (!isAdmin) {
+      if (onRequestAdminLogin) {
+        onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengubah status atau kategori titik reklame secara massal.');
+      }
+      return;
+    }
+
+    const spotIds = Array.from(selectedIds);
+    let isAvailableVal: boolean | undefined = undefined;
+    if (bulkAvailabilityChoice === 'AVAILABLE') isAvailableVal = true;
+    if (bulkAvailabilityChoice === 'BOOKED') isAvailableVal = false;
+
+    let catVal: MediaCategory | undefined = undefined;
+    let mediaTypeVal: MediaType | undefined = undefined;
+
+    if (bulkCategoryChoice !== 'UNCHANGED' && bulkCategoryChoice.includes('|')) {
+      const [c, m] = bulkCategoryChoice.split('|');
+      catVal = c as MediaCategory;
+      mediaTypeVal = m as MediaType;
+    }
+
+    if (isAvailableVal === undefined && !catVal) {
+      setIsBulkEditModalOpen(false);
+      return;
+    }
+
+    setIsExecutingBulkEdit(true);
+
+    if (onBulkUpdateSpots) {
+      onBulkUpdateSpots(spotIds, {
+        isAvailable: isAvailableVal,
+        category: catVal,
+        mediaType: mediaTypeVal
+      });
+    } else if (isAvailableVal !== undefined) {
+      onBulkUpdateAvailability(spotIds, isAvailableVal);
+    }
+
+    setIsExecutingBulkEdit(false);
+    setIsBulkEditModalOpen(false);
+    // Reset selection & choices
+    setBulkAvailabilityChoice('UNCHANGED');
+    setBulkCategoryChoice('UNCHANGED');
   };
 
   // Export selected spots to Excel CSV
@@ -846,10 +932,31 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                 <span>Batch Share to WhatsApp ({selectedIds.size})</span>
               </button>
 
+              {/* MODAL AKSI MASSAL: UBAH STATUS KETERSEDIAAN & KATEGORI SEKALIGUS */}
+              <button
+                id="btn-open-bulk-edit-modal"
+                data-testid="btn-open-bulk-edit-modal"
+                type="button"
+                onClick={() => {
+                  if (!isAdmin) {
+                    if (onRequestAdminLogin) {
+                      onRequestAdminLogin('Akses Khusus Admin: Silakan masuk sebagai Admin untuk mengubah status ketersediaan atau kategori beberapa titik reklame sekaligus.');
+                    }
+                    return;
+                  }
+                  setIsBulkEditModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold rounded-lg text-xs transition-colors shadow-xs border border-indigo-400/40 active:scale-95 cursor-pointer"
+                title={`Ubah status ketersediaan atau kategori untuk ${selectedIds.size} titik reklame sekaligus dalam satu aksi`}
+              >
+                <Sliders className="w-3.5 h-3.5 text-indigo-200" />
+                <span>Ubah Status &amp; Kategori ({selectedIds.size})</span>
+              </button>
+
               {/* Set to Available */}
               <button
                 onClick={() => handleBulkSetStatus(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs transition-colors shadow-xs border border-emerald-400/40 active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs transition-colors shadow-xs border border-emerald-400/40 active:scale-95 cursor-pointer"
                 title="Ubah semua titik terpilih menjadi Tersedia"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
@@ -859,12 +966,44 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               {/* Set to Reserved / Sold Out */}
               <button
                 onClick={() => handleBulkSetStatus(false)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-lg text-xs transition-colors shadow-xs border border-rose-400/40 active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-lg text-xs transition-colors shadow-xs border border-rose-400/40 active:scale-95 cursor-pointer"
                 title="Ubah semua titik terpilih menjadi Tersewa / Reserved"
               >
                 <XCircle className="w-3.5 h-3.5" />
                 Set Tersewa / Reserved ({selectedIds.size})
               </button>
+
+              {/* Quick Inline Bulk Category Switcher */}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 text-slate-200 rounded-lg text-xs border border-slate-700 shadow-2xs">
+                <Tag className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span className="font-semibold text-[11px] text-slate-300 hidden sm:inline">Kategori Massal:</span>
+                <select
+                  aria-label="Pilih kategori massal untuk titik terpilih"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleQuickBulkCategory(e.target.value);
+                      e.target.value = "";
+                    }
+                  }}
+                  className="bg-slate-900 text-slate-100 text-[11px] font-medium rounded px-2 py-1 border border-slate-700 cursor-pointer focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">-- Ganti Kategori ({selectedIds.size} Titik) --</option>
+                  <optgroup label="DOOH Digital (Videotron)">
+                    <option value="DOOH_DIGITAL|LED Videotron">DOOH - LED Videotron</option>
+                    <option value="DOOH_DIGITAL|LED BANDO">DOOH - LED BANDO</option>
+                    <option value="DOOH_DIGITAL|LED Pylon Berbaris">DOOH - LED Pylon Berbaris</option>
+                    <option value="DOOH_DIGITAL|LED Single Pole">DOOH - LED Single Pole</option>
+                  </optgroup>
+                  <optgroup label="OOH Statis">
+                    <option value="OOH_STATIC|Billboard Frontlite">OOH - Billboard Frontlite</option>
+                    <option value="OOH_STATIC|Billboard Backlite">OOH - Billboard Backlite</option>
+                    <option value="OOH_STATIC|Bando Frontlite">OOH - Bando Frontlite</option>
+                    <option value="OOH_STATIC|JPO Frontlite">OOH - JPO Frontlite</option>
+                    <option value="OOH_STATIC|JPO Backlite">OOH - JPO Backlite</option>
+                  </optgroup>
+                </select>
+              </div>
 
               {/* Export Selected to Excel CSV */}
               <button
@@ -949,7 +1088,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
           <table className="w-full text-left text-xs text-slate-700">
             <thead className="bg-slate-100 text-slate-800 font-semibold text-[11px] uppercase tracking-wider border-b border-slate-200">
               <tr>
-                {/* Quick Compare Checkbox Column */}
+                {/* Bulk Select & Quick Compare Checkbox Column */}
                 <th className="py-3 px-3 w-14 text-center">
                   <div className="flex flex-col items-center justify-center gap-0.5">
                     <button
@@ -958,7 +1097,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                       type="button"
                       onClick={toggleSelectPage}
                       className="text-slate-600 hover:text-emerald-700 transition-colors focus:outline-hidden cursor-pointer"
-                      title={isAllPageSelected ? 'Batal pilih halaman ini' : 'Pilih semua di halaman ini'}
+                      title={isAllPageSelected ? 'Batal pilih semua di halaman ini' : 'Pilih semua titik di halaman ini (Aksi Massal / Compare)'}
                     >
                       {isAllPageSelected ? (
                         <CheckSquare className="w-4 h-4 text-emerald-600" />
@@ -969,7 +1108,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                       )}
                     </button>
                     <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-tight whitespace-nowrap">
-                      Quick Compare
+                      Pilih
                     </span>
                   </div>
                 </th>
@@ -1085,12 +1224,12 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                           : 'hover:bg-slate-100/70 hover:shadow-xs'
                       }`}
                     >
-                      {/* Quick Compare Checkbox */}
+                      {/* Bulk Select & Quick Compare Checkbox */}
                       <td className="py-3 px-3 text-center">
                         <label
                           htmlFor={`quick-compare-${spot.id}`}
                           className="inline-flex flex-col items-center justify-center cursor-pointer p-1 rounded-md hover:bg-emerald-100/60 transition-colors select-none group/chk"
-                          title={`Quick Compare: Centang untuk membandingkan "${spot.name}"`}
+                          title={`Pilih Titik: Centang "${spot.name}" untuk aksi massal atau compare`}
                         >
                           <input
                             type="checkbox"
@@ -1099,7 +1238,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                             checked={isSelected}
                             onChange={(e) => toggleSelectSpot(spot.id, e)}
                             className="sr-only"
-                            aria-label={`Quick Compare ${spot.name}`}
+                            aria-label={`Pilih ${spot.name}`}
                           />
                           {isSelected ? (
                             <CheckSquare className="w-4 h-4 text-emerald-600 fill-emerald-100" />
@@ -1107,7 +1246,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                             <Square className="w-4 h-4 text-slate-300 group-hover/chk:text-emerald-600" />
                           )}
                           <span className="text-[8px] font-bold text-slate-400 group-hover/chk:text-emerald-700 mt-0.5 leading-none">
-                            Compare
+                            Pilih
                           </span>
                         </label>
                       </td>
@@ -2246,6 +2385,206 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Ya, Hapus Titik</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Aksi Massal: Ubah Status Ketersediaan & Kategori Sekaligus */}
+      {isBulkEditModalOpen && (
+        <div 
+          id="modal-bulk-edit-status-category"
+          data-testid="modal-bulk-edit-status-category"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-indigo-900/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-400">
+                  <Sliders className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold tracking-tight flex items-center gap-2">
+                    <span>Ubah Status &amp; Kategori Massal</span>
+                    <span className="text-[10px] bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full border border-indigo-400/30 font-mono">
+                      {selectedIds.size} Titik Terpilih
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-300">
+                    Perbarui status ketersediaan atau kategori untuk semua titik reklame yang dipilih sekaligus
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBulkEditModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Opsi 1: Status Ketersediaan */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  1. Ubah Status Ketersediaan
+                </label>
+                <p className="text-[11px] text-slate-500">
+                  Pilih status ketersediaan baru untuk {selectedIds.size} titik reklame terpilih:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setBulkAvailabilityChoice('UNCHANGED')}
+                    className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-all cursor-pointer ${
+                      bulkAvailabilityChoice === 'UNCHANGED'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-semibold text-slate-800">Tidak Berubah</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Biarkan status saat ini</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBulkAvailabilityChoice('AVAILABLE')}
+                    className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-all cursor-pointer ${
+                      bulkAvailabilityChoice === 'AVAILABLE'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 text-emerald-700 font-bold">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Set Tersedia</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Siap disewa / Ready</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBulkAvailabilityChoice('BOOKED')}
+                    className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-all cursor-pointer ${
+                      bulkAvailabilityChoice === 'BOOKED'
+                        ? 'border-rose-600 bg-rose-50 text-rose-900 font-bold ring-2 ring-rose-500/20'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 text-rose-700 font-bold">
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>Set Tersewa</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Sedang kontrak / Reserved</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Opsi 2: Kategori & Tipe Media */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Tag className="w-4 h-4 text-indigo-600" />
+                  2. Ubah Kategori &amp; Format Media
+                </label>
+                <p className="text-[11px] text-slate-500">
+                  Ubah klasifikasi format dan tipe media untuk {selectedIds.size} titik terpilih:
+                </p>
+                <select
+                  value={bulkCategoryChoice}
+                  onChange={(e) => setBulkCategoryChoice(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="UNCHANGED">-- Tidak Berubah (Pertahankan Kategori Masing-masing) --</option>
+                  <optgroup label="DOOH Digital (Videotron &amp; Digital Signage)">
+                    <option value="DOOH_DIGITAL|LED Videotron">DOOH - LED Videotron</option>
+                    <option value="DOOH_DIGITAL|LED BANDO">DOOH - LED BANDO</option>
+                    <option value="DOOH_DIGITAL|LED Pylon Berbaris">DOOH - LED Pylon Berbaris</option>
+                    <option value="DOOH_DIGITAL|LED Single Pole">DOOH - LED Single Pole</option>
+                  </optgroup>
+                  <optgroup label="OOH Statis (Billboard &amp; JPO Fisik)">
+                    <option value="OOH_STATIC|Billboard Frontlite">OOH - Billboard Frontlite</option>
+                    <option value="OOH_STATIC|Billboard Backlite">OOH - Billboard Backlite</option>
+                    <option value="OOH_STATIC|Bando Frontlite">OOH - Bando Frontlite</option>
+                    <option value="OOH_STATIC|JPO Frontlite">OOH - JPO Frontlite</option>
+                    <option value="OOH_STATIC|JPO Backlite">OOH - JPO Backlite</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* Daftar Ringkas Titik yang Terpilih */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                  <span>Daftar Titik Reklame yang Terdampak ({selectedSpotsList.length} titik):</span>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {selectedAvailableCount} Tersedia, {selectedSoldOutCount} Tersewa
+                  </span>
+                </div>
+                <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white p-1">
+                  {selectedSpotsList.map((s, idx) => (
+                    <div key={s.id} className="p-2 flex items-center justify-between text-[11px] hover:bg-slate-50 rounded-lg">
+                      <div className="min-w-0 pr-2">
+                        <div className="font-semibold text-slate-900 truncate">
+                          {idx + 1}. {s.name}
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate">
+                          {s.city} • {s.roadName || s.district} • {s.mediaType}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                          s.isAvailable 
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                            : 'bg-rose-100 text-rose-800 border border-rose-200'
+                        }`}>
+                          {s.isAvailable ? 'Tersedia' : 'Tersewa'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBulkEditModalOpen(false);
+                  setBulkAvailabilityChoice('UNCHANGED');
+                  setBulkCategoryChoice('UNCHANGED');
+                }}
+                disabled={isExecutingBulkEdit}
+                className="px-4 py-2 border border-slate-300 hover:bg-white text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExecuteBulkEdit}
+                disabled={
+                  isExecutingBulkEdit ||
+                  (bulkAvailabilityChoice === 'UNCHANGED' && bulkCategoryChoice === 'UNCHANGED')
+                }
+                className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isExecutingBulkEdit ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Memproses Pembaruan Massal...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCheck className="w-3.5 h-3.5" />
+                    <span>Terapkan Perubahan ({selectedIds.size} Titik)</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -40,6 +40,7 @@ interface HeaderProps {
   onOpenAvailabilityQueue?: () => void;
   onOpenCrm?: () => void;
   onOpenEstimatedRoi?: () => void;
+  onOpenDataSources?: () => void;
   onToggleNotif: () => void;
   isNotifOpen: boolean;
   activeTab: 'map' | 'analytics' | 'table' | 'planner' | 'roi' | 'crm';
@@ -64,6 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAvailabilityQueue,
   onOpenCrm,
   onOpenEstimatedRoi,
+  onOpenDataSources,
   onToggleNotif,
   isNotifOpen,
   activeTab,
@@ -295,7 +297,7 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
-                        9 Menu
+                        10 Menu
                       </span>
                     </div>
                   </div>
@@ -599,6 +601,34 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                         <p className="text-[11px] text-slate-400 truncate">
                           Pantau titik tersewa ber-demand tinggi & antrean prospek
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Sumber Data Eksternal & Audit Akurasi */}
+                    <button
+                      type="button"
+                      id="menu-data-sources-audit-btn"
+                      onClick={() => {
+                        setIsMasterMenuOpen(false);
+                        if (onOpenDataSources) onOpenDataSources();
+                      }}
+                      className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left hover:bg-slate-800/80 transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors">
+                            Sumber Data &amp; Akurasi
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                            Verified
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          Audit Dishub, BPS, Google Maps &amp; log survei fisik
                         </p>
                       </div>
                     </button>

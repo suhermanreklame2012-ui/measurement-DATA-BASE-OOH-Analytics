@@ -37,6 +37,7 @@ import { AiSecurityModal } from './components/AiSecurityModal';
 import { AiProposalOutreachModal } from './components/AiProposalOutreachModal';
 import { TriLayerAiArchitectModal } from './components/TriLayerAiArchitectModal';
 import { AvailabilityQueueModal } from './components/AvailabilityQueueModal';
+import { ExternalDataSourcesModal } from './components/ExternalDataSourcesModal';
 import { StrategicMediaPlanner } from './components/StrategicMediaPlanner';
 import { EstimatedRoiCalculator } from './components/EstimatedRoiCalculator';
 import { NotificationCenter } from './components/NotificationCenter';
@@ -72,6 +73,7 @@ export default function App() {
   const [isAiProposalModalOpen, setIsAiProposalModalOpen] = useState<boolean>(false);
   const [isAiArchitectModalOpen, setIsAiArchitectModalOpen] = useState<boolean>(false);
   const [isAvailabilityQueueModalOpen, setIsAvailabilityQueueModalOpen] = useState<boolean>(false);
+  const [isExternalSourcesModalOpen, setIsExternalSourcesModalOpen] = useState<boolean>(false);
   const [isCrmStandaloneOpen, setIsCrmStandaloneOpen] = useState<boolean>(false);
   const [proposalSpots, setProposalSpots] = useState<MediaSpot[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<MediaSpot | null>(null);
@@ -589,6 +591,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenEstimatedRoi={() => handleOpenRoi()}
+        onOpenDataSources={() => setIsExternalSourcesModalOpen(true)}
         isFirestoreConnected={isFirestoreConnected}
         isAdmin={isAdminAuthenticated}
         onOpenLogin={handleRequestAdminLogin}
@@ -837,6 +840,12 @@ export default function App() {
         spots={spots}
         onSelectSpot={(spot) => setSelectedSpot(spot)}
         isAdmin={isAdminAuthenticated}
+      />
+
+      {/* External Data Sources & Analytics Governance Audit Modal */}
+      <ExternalDataSourcesModal
+        isOpen={isExternalSourcesModalOpen}
+        onClose={() => setIsExternalSourcesModalOpen(false)}
       />
 
       {/* Standalone CRM Pipeline View ("03 Bisa dipakai sendiri") */}

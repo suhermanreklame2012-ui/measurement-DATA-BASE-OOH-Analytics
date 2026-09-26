@@ -26,8 +26,10 @@ import {
   Award,
   Zap,
   LayoutGrid,
-  List
+  List,
+  ShieldCheck
 } from 'lucide-react';
+import { AnalyticsSourceModal } from './AnalyticsSourceModal';
 
 export interface SpotComparisonViewProps {
   allSpots: MediaSpot[];
@@ -161,6 +163,8 @@ export const SpotComparisonView: React.FC<SpotComparisonViewProps> = ({
   );
   const [isAddPickerOpen, setIsAddPickerOpen] = useState<boolean>(false);
   const [pickerSearch, setPickerSearch] = useState<string>('');
+  const [isSourceModalOpen, setIsSourceModalOpen] = useState<boolean>(false);
+  const [activeSourceMetricKey, setActiveSourceMetricKey] = useState<'traffic' | 'impressions' | 'visibility' | 'demographics' | 'roi_cpm'>('traffic');
 
   // Keep visibleSpotIds in sync when spots are added
   React.useEffect(() => {
@@ -413,6 +417,24 @@ export const SpotComparisonView: React.FC<SpotComparisonViewProps> = ({
               <span>Side-by-Side</span>
             </button>
           </div>
+
+          {/* Data Source & Calculation Accuracy Audit Button */}
+          <button
+            type="button"
+            id="btn-open-source-modal-radar"
+            onClick={() => {
+              setActiveSourceMetricKey('traffic');
+              setIsSourceModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+            title="Lihat sumber pengambilan data (Dishub, BPS, WOO) dan persentase akurasi perhitungan"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Sumber Data &amp; Akurasi</span>
+            <span className="px-1.5 py-0.2 rounded font-mono font-bold bg-emerald-200/80 text-[10px]">
+              94.2%
+            </span>
+          </button>
 
           {/* Quick PDF Proposal for Compared Spots */}
           {onOpenPdfModal && (
@@ -1300,6 +1322,13 @@ export const SpotComparisonView: React.FC<SpotComparisonViewProps> = ({
         </div>
 
       </div>
+
+      {/* Analytics Data Sources & Calculation Accuracy Modal */}
+      <AnalyticsSourceModal
+        isOpen={isSourceModalOpen}
+        onClose={() => setIsSourceModalOpen(false)}
+        activeMetricKey={activeSourceMetricKey}
+      />
 
     </div>
   );

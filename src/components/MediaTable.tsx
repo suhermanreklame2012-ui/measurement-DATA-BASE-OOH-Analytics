@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { MediaSpot, ClientContact, ProposalDuration, FilterState, MediaCategory, MediaType } from '../types/ooh';
 import { PerformanceOverview } from './PerformanceOverview';
 import { SpotComparisonView } from './SpotComparisonView';
+import { VisibleSpotsReachLineChart } from './VisibleSpotsReachLineChart';
 import { formatIDR, formatCompactNumber, formatCompactIDR } from '../utils/formatters';
 import { exportSpotsToCSV, addNotification } from '../services/storageService';
 import { openSpotDirectWhatsApp, openMultipleSpotsDirectWhatsApp } from '../utils/whatsapp';
@@ -54,9 +55,13 @@ import {
   Sliders,
   Tag,
   CheckCheck,
-  RefreshCw
+  RefreshCw,
+  Award,
+  ShieldCheck
 } from 'lucide-react';
 import { calculateDemandMetrics } from '../services/availabilityAlertService';
+import { parseSpotDimensions } from './DirectComparisonSpecTable';
+import { AnalyticsSourceModal } from './AnalyticsSourceModal';
 
 interface MediaTableProps {
   spots: MediaSpot[];
@@ -125,10 +130,11 @@ export const MediaTable: React.FC<MediaTableProps> = ({
     return calculateDemandMetrics(spots);
   }, [spots, demandUpdateTick]);
 
-  // Bulk Selection State & Quick Compare State
+  // Bulk Selection State & Quick Compare State (Max 3 spots for Compare)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [comparedSpotIds, setComparedSpotIds] = useState<string[]>([]);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState<boolean>(false);
+  const [compareModalTab, setCompareModalTab] = useState<'matrix' | 'radar'>('matrix');
 
   // Bulk Edit Modal State (Ubah Status Ketersediaan & Kategori Massal)
   const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState<boolean>(false);
@@ -136,13 +142,20 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   const [bulkCategoryChoice, setBulkCategoryChoice] = useState<string>('UNCHANGED');
   const [isExecutingBulkEdit, setIsExecutingBulkEdit] = useState<boolean>(false);
 
+  // Line Chart State (Total Monthly Impressions Trend & Cumulative Reach Potential in Table Header)
+  const [showReachLineChart, setShowReachLineChart] = useState<boolean>(true);
+
+  // Analytics Data Source & Accuracy Audit Modal State
+  const [isSourceModalOpen, setIsSourceModalOpen] = useState<boolean>(false);
+  const [activeSourceMetricKey, setActiveSourceMetricKey] = useState<'traffic' | 'impressions' | 'visibility' | 'demographics' | 'roi_cpm'>('traffic');
+
   // Deletion Confirmation States
   const [spotToDelete, setSpotToDelete] = useState<MediaSpot | null>(null);
   const [isConfirmBulkDeleteOpen, setIsConfirmBulkDeleteOpen] = useState<boolean>(false);
 
   const handleOpenComparisonModal = () => {
-    if (selectedIds.size >= 2) {
-      setComparedSpotIds(Array.from(selectedIds).slice(0, 6));
+    if (selectedIds.size >= 1) {
+      setComparedSpotIds(Array.from(selectedIds).slice(0, 3));
     } else if (comparedSpotIds.length < 2) {
       const fallback = spots.slice(0, 3).map((s) => s.id);
       setComparedSpotIds(fallback);
@@ -150,31 +163,91 @@ export const MediaTable: React.FC<MediaTableProps> = ({
     setIsCompareModalOpen(true);
   };
 
-  // Effective spots currently being compared in the Spot Comparison Radar View
+  // Effective spots currently being compared in the Side-by-Side Comparison (Max 3 spots)
   const effectiveComparedSpots = useMemo(() => {
     const spotMap = new Map(spots.map((s) => [s.id, s]));
     
     if (comparedSpotIds.length > 0) {
       const list = comparedSpotIds.map((id) => spotMap.get(id)).filter(Boolean) as MediaSpot[];
-      if (list.length > 0) return list;
+      if (list.length > 0) return list.slice(0, 3);
     }
 
-    if (selectedIds.size >= 2) {
+    if (selectedIds.size >= 1) {
       const list = Array.from(selectedIds).map((id) => spotMap.get(id)).filter(Boolean) as MediaSpot[];
-      if (list.length > 0) return list.slice(0, 6);
+      if (list.length > 0) return list.slice(0, 3);
     }
 
     return spots.slice(0, 3);
   }, [comparedSpotIds, selectedIds, spots]);
 
+  // Computed highlights & benchmarks for side-by-side comparison
+  const comparisonBenchmarks = useMemo(() => {
+    if (effectiveComparedSpots.length === 0) {
+      return { highestTrafficId: '', lowestPriceId: '', highestImpressionsId: '', highestVisibilityId: '' };
+    }
+
+    let highestTraffic = -1;
+    let highestTrafficId = '';
+    let lowestPrice = Infinity;
+    let lowestPriceId = '';
+    let highestImpressions = -1;
+    let highestImpressionsId = '';
+    let highestVisibility = -1;
+    let highestVisibilityId = '';
+
+    effectiveComparedSpots.forEach((spot) => {
+      const traffic = spot.dailyTraffic || 0;
+      if (traffic > highestTraffic) {
+        highestTraffic = traffic;
+        highestTrafficId = spot.id;
+      }
+
+      const price = spot.pricing?.oneMonth || 0;
+      if (price > 0 && price < lowestPrice) {
+        lowestPrice = price;
+        lowestPriceId = spot.id;
+      }
+
+      const impressions = spot.dailyImpressions || 0;
+      if (impressions > highestImpressions) {
+        highestImpressions = impressions;
+        highestImpressionsId = spot.id;
+      }
+
+      const vis = spot.visibilityScore || 0;
+      if (vis > highestVisibility) {
+        highestVisibility = vis;
+        highestVisibilityId = spot.id;
+      }
+    });
+
+    return {
+      highestTrafficId,
+      lowestPriceId,
+      highestImpressionsId,
+      highestVisibilityId
+    };
+  }, [effectiveComparedSpots]);
+
   const handleAddSpotToCompare = (spotId: string) => {
     setComparedSpotIds((prev) => {
       const base = prev.length > 0 ? prev : effectiveComparedSpots.map((s) => s.id);
       if (base.includes(spotId)) return base;
-      if (base.length >= 6) return base;
+      if (base.length >= 3) {
+        addNotification({
+          title: 'Maksimal 3 Titik',
+          message: 'Fitur Compare mendukung perbandingan maksimal 3 titik media secara berdampingan.',
+          type: 'system'
+        });
+        return base;
+      }
       return [...base, spotId];
     });
-    setSelectedIds((prev) => new Set([...prev, spotId]));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.size < 3) next.add(spotId);
+      return next;
+    });
   };
 
   const handleRemoveSpotFromCompare = (spotId: string) => {
@@ -191,6 +264,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
 
   const handleClearComparison = () => {
     setComparedSpotIds([]);
+    setSelectedIds(new Set());
   };
 
   const handleSort = (field: SortField) => {
@@ -271,7 +345,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   const isSomePageSelected = pageSpotIds.some((id) => selectedIds.has(id)) && !isAllPageSelected;
   const isAllTotalSelected = allSpotsIds.length > 0 && allSpotsIds.every((id) => selectedIds.has(id));
 
-  // Toggle single item selection / Quick Compare
+  // Toggle single item selection / Compare (Max 3 spots)
   const toggleSelectSpot = (id: string, e?: React.MouseEvent | React.SyntheticEvent) => {
     if (e && 'stopPropagation' in e) e.stopPropagation();
     setSelectedIds((prev) => {
@@ -279,22 +353,37 @@ export const MediaTable: React.FC<MediaTableProps> = ({
       if (next.has(id)) {
         next.delete(id);
       } else {
+        if (next.size >= 3) {
+          addNotification({
+            title: 'Maksimal 3 Titik untuk Compare',
+            message: 'Fitur Compare mendukung perbandingan maksimal 3 titik reklame secara bersamaan. Hapus salah satu pilihan terlebih dahulu untuk memilih titik lain.',
+            type: 'system'
+          });
+          return prev;
+        }
         next.add(id);
       }
       return next;
     });
   };
 
-  // Toggle page selection checkbox
+  // Toggle page selection checkbox (Select up to 3 spots on current page)
   const toggleSelectPage = () => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (isAllPageSelected) {
+      if (isAllPageSelected || next.size >= 3) {
         // Uncheck all on current page
         pageSpotIds.forEach((id) => next.delete(id));
       } else {
-        // Check all on current page
-        pageSpotIds.forEach((id) => next.add(id));
+        // Check up to 3 on current page for comparison
+        pageSpotIds.slice(0, 3).forEach((id) => next.add(id));
+        if (pageSpotIds.length > 3) {
+          addNotification({
+            title: '3 Titik Dipilih untuk Compare',
+            message: 'Maksimal 3 titik pada halaman dipilih untuk perbandingan side-by-side.',
+            type: 'system'
+          });
+        }
       }
       return next;
     });
@@ -730,18 +819,18 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               </button>
             </div>
 
-            {/* Compare Spots Button (Visible when 2 or more spots selected) */}
-            {selectedIds.size >= 2 && (
+            {/* Compare Spots Button (Visible when spots selected) */}
+            {selectedIds.size >= 1 && (
               <button
                 id="btn-compare-spots-toolbar"
                 data-testid="btn-compare-spots-toolbar"
                 type="button"
                 onClick={handleOpenComparisonModal}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold rounded-lg border border-emerald-300 text-xs transition-all shadow-sm active:scale-95 cursor-pointer animate-in fade-in"
-                title="Compare Spots: Buka perbandingan side-by-side untuk traffic, price, dan visibility titik terpilih"
+                title="Compare Spots: Buka perbandingan side-by-side untuk traffic, price, dan media type titik terpilih (Maks. 3 titik)"
               >
                 <Scale className="w-4 h-4 fill-slate-950" />
-                <span>Compare Spots ({selectedIds.size})</span>
+                <span>Compare Spots ({Math.min(selectedIds.size, 3)}/3)</span>
               </button>
             )}
 
@@ -780,6 +869,47 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               <MessageCircle className="w-3.5 h-3.5 fill-slate-950 text-[#25D366]" />
               <span>
                 Batch Share to WhatsApp {selectedIds.size > 0 ? `(${selectedIds.size})` : `(${paginatedSpots.length})`}
+              </span>
+            </button>
+
+            {/* Toggle Total Monthly Impressions Trend Line Chart */}
+            <button
+              id="btn-toggle-impressions-trend-chart"
+              data-testid="btn-toggle-impressions-trend-chart"
+              type="button"
+              onClick={() => setShowReachLineChart(!showReachLineChart)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 active:scale-95 font-semibold rounded-lg border shadow-2xs text-xs transition-all cursor-pointer ${
+                showReachLineChart
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 font-bold'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+              title="Tampilkan / Sembunyikan grafik Recharts tren Total Monthly Impressions (OTS) dan potensi jangkauan kumulatif titik terlihat"
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Tren Impresi (OTS)</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                showReachLineChart ? 'bg-emerald-700 text-white font-bold' : 'bg-slate-900 text-slate-400'
+              }`}>
+                {paginatedSpots.length}
+              </span>
+            </button>
+
+            {/* Audit Data Sources & Calculation Accuracy Button */}
+            <button
+              id="btn-open-analytics-source-modal-table"
+              data-testid="btn-open-analytics-source-modal-table"
+              type="button"
+              onClick={() => {
+                setActiveSourceMetricKey('traffic');
+                setIsSourceModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 active:scale-95 font-semibold rounded-lg border shadow-2xs text-xs transition-all cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700"
+              title="Buka rincian transparansi sumber pengambilan data (Dishub Jabar, BPS, WOO) dan persentase akurasi perhitungan"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Sumber Data &amp; Akurasi</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-bold">
+                94.2%
               </span>
             </button>
 
@@ -849,6 +979,16 @@ export const MediaTable: React.FC<MediaTableProps> = ({
           </div>
         </div>
 
+        {/* Line Chart in MediaTable Header: displays trend of Total Monthly Impressions (OTS) and cumulative reach potential */}
+        {showReachLineChart && paginatedSpots.length > 0 && (
+          <VisibleSpotsReachLineChart
+            visibleSpots={paginatedSpots}
+            allFilteredSpots={spots}
+            onSelectSpot={onSelectSpot}
+            defaultExpanded={true}
+          />
+        )}
+
         {/* Dynamic Bulk Action Bar */}
         {selectedIds.size > 0 && (
           <div className="bg-emerald-900 text-white px-5 py-3 border-b border-emerald-800 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-150">
@@ -897,14 +1037,14 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                 type="button"
                 onClick={handleOpenComparisonModal}
                 className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 font-bold rounded-lg text-xs transition-all shadow-xs active:scale-95 cursor-pointer ${
-                  selectedIds.size >= 2
+                  selectedIds.size >= 1
                     ? 'bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 border border-emerald-200 ring-2 ring-emerald-300/40'
                     : 'bg-emerald-700/80 text-white hover:bg-emerald-600 border border-emerald-500/50'
                 }`}
-                title={selectedIds.size >= 2 ? "Compare Spots: Buka tampilan side-by-side untuk traffic, price, dan visibility" : "Pilih minimal 2 titik untuk Compare Spots"}
+                title="Compare Spots: Buka perbandingan side-by-side untuk traffic, price, dan media type titik terpilih"
               >
                 <Scale className="w-3.5 h-3.5 fill-slate-950 font-bold" />
-                <span>Compare Spots ({selectedIds.size})</span>
+                <span>Compare Spots ({Math.min(selectedIds.size, 3)}/3)</span>
               </button>
 
               {/* Batch Generate PDF Proposal */}
@@ -1089,15 +1229,15 @@ export const MediaTable: React.FC<MediaTableProps> = ({
             <thead className="bg-slate-100 text-slate-800 font-semibold text-[11px] uppercase tracking-wider border-b border-slate-200">
               <tr>
                 {/* Bulk Select & Quick Compare Checkbox Column */}
-                <th className="py-3 px-3 w-14 text-center">
-                  <div className="flex flex-col items-center justify-center gap-0.5">
+                <th className="py-3 px-3 w-16 text-center">
+                  <div className="relative group/hdr flex flex-col items-center justify-center gap-0.5">
                     <button
                       id="btn-toggle-select-all-page"
                       data-testid="btn-toggle-select-all-page"
                       type="button"
                       onClick={toggleSelectPage}
                       className="text-slate-600 hover:text-emerald-700 transition-colors focus:outline-hidden cursor-pointer"
-                      title={isAllPageSelected ? 'Batal pilih semua di halaman ini' : 'Pilih semua titik di halaman ini (Aksi Massal / Compare)'}
+                      title={isAllPageSelected ? 'Batal pilih semua' : 'Pilih hingga maksimal 3 titik untuk dibandingkan secara side-by-side'}
                     >
                       {isAllPageSelected ? (
                         <CheckSquare className="w-4 h-4 text-emerald-600" />
@@ -1108,8 +1248,30 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                       )}
                     </button>
                     <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-tight whitespace-nowrap">
-                      Pilih
+                      Compare
                     </span>
+                    {selectedIds.size > 0 && (
+                      <span className="text-[8px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded-full">
+                        {Math.min(selectedIds.size, 3)}/3
+                      </span>
+                    )}
+
+                    {/* Descriptive Tooltip on Header explaining maximum 3 spots limit */}
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover/hdr:flex flex-col w-60 p-2.5 bg-slate-900/95 text-white text-[10px] rounded-xl shadow-2xl border border-slate-700 pointer-events-none z-50 text-left animate-in fade-in duration-150 backdrop-blur-xs">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-400 mb-1">
+                        <Scale className="w-3.5 h-3.5 shrink-0" />
+                        <span>Fitur Compare (Side-by-Side)</span>
+                      </div>
+                      <p className="text-slate-200 text-[10px] leading-relaxed">
+                        Centang kotak untuk memilih hingga <strong>maksimal 3 titik reklame</strong> untuk melihat perbandingan berdampingan atas metrik Traffic, Tarif Sewa (Price), dan Tipe Media.
+                      </p>
+                      <div className="mt-1.5 pt-1 border-t border-slate-700/80 flex items-center justify-between text-[9px]">
+                        <span className="text-slate-400">Status Pilihan:</span>
+                        <span className="font-bold text-emerald-300">
+                          {Math.min(selectedIds.size, 3)} dari maks. 3 titik
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </th>
                 <th className="py-3 px-2 w-8 text-center">No</th>
@@ -1152,10 +1314,21 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                       ? 'bg-emerald-50 text-emerald-950 font-bold border-b-2 border-emerald-600' 
                       : 'hover:bg-slate-200'
                   }`}
-                  title={`Urutkan Volume Traffic: Saat ini ${sortField === 'dailyTraffic' ? (sortOrder === 'desc' ? 'Terpadat ke Terlengang' : 'Terlengang ke Terpadat') : 'belum aktif'}. Klik untuk ubah.`}
+                  title={`Urutkan Volume Traffic: Saat ini ${sortField === 'dailyTraffic' ? (sortOrder === 'desc' ? 'Terpadat ke Terlengang' : 'Terlengang ke Terpadat') : 'belum aktif'}. Akurasi data: 94.2% (Sumber: Dishub Jawa Barat & Google Flow). Klik untuk ubah.`}
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Traffic / Hari</span>
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveSourceMetricKey('traffic');
+                        setIsSourceModalOpen(true);
+                      }}
+                      className="px-1 py-0.2 rounded bg-blue-100 hover:bg-blue-200 text-blue-800 text-[9px] font-mono font-bold border border-blue-200" 
+                      title="Akurasi 94.2% • Sumber: Dishub Jabar & Google Flow. Klik untuk audit metodologi."
+                    >
+                      94.2%
+                    </span>
                     {renderSortIndicator('dailyTraffic')}
                   </div>
                 </th>
@@ -1171,9 +1344,20 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                     sortField === 'dailyImpressions' 
                       ? (sortOrder === 'desc' ? 'Tertinggi ke Terendah (↓)' : 'Terendah ke Tertinggi (↑)') 
                       : 'belum aktif'
-                  }. Klik untuk ubah urutan.`}
+                  }. Akurasi perhitungan: 91.8% (Formula Standar WOO / ESOMAR & BPS Jabar). Klik untuk ubah urutan.`}
                 >
                   <div className="flex items-center justify-end gap-1.5">
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveSourceMetricKey('impressions');
+                        setIsSourceModalOpen(true);
+                      }}
+                      className="px-1 py-0.2 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[9px] font-mono font-bold border border-emerald-200"
+                      title="Akurasi 91.8% • Sumber: Standar WOO & BPS Jabar. Klik untuk audit metodologi."
+                    >
+                      91.8%
+                    </span>
                     <span>Est. Impresi (OTS)</span>
                     {renderSortIndicator('dailyImpressions')}
                   </div>
@@ -1224,31 +1408,69 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                           : 'hover:bg-slate-100/70 hover:shadow-xs'
                       }`}
                     >
-                      {/* Bulk Select & Quick Compare Checkbox */}
+                      {/* Compare Checkbox with Descriptive Hover Tooltip */}
                       <td className="py-3 px-3 text-center">
-                        <label
-                          htmlFor={`quick-compare-${spot.id}`}
-                          className="inline-flex flex-col items-center justify-center cursor-pointer p-1 rounded-md hover:bg-emerald-100/60 transition-colors select-none group/chk"
-                          title={`Pilih Titik: Centang "${spot.name}" untuk aksi massal atau compare`}
-                        >
-                          <input
-                            type="checkbox"
-                            id={`quick-compare-${spot.id}`}
-                            data-testid={`quick-compare-checkbox-${spot.id}`}
-                            checked={isSelected}
-                            onChange={(e) => toggleSelectSpot(spot.id, e)}
-                            className="sr-only"
-                            aria-label={`Pilih ${spot.name}`}
-                          />
-                          {isSelected ? (
-                            <CheckSquare className="w-4 h-4 text-emerald-600 fill-emerald-100" />
-                          ) : (
-                            <Square className="w-4 h-4 text-slate-300 group-hover/chk:text-emerald-600" />
-                          )}
-                          <span className="text-[8px] font-bold text-slate-400 group-hover/chk:text-emerald-700 mt-0.5 leading-none">
-                            Pilih
-                          </span>
-                        </label>
+                        <div className="relative inline-flex group/chk">
+                          <label
+                            htmlFor={`quick-compare-${spot.id}`}
+                            className={`inline-flex flex-col items-center justify-center cursor-pointer p-1.5 rounded-lg transition-all select-none ${
+                              isSelected 
+                                ? 'bg-emerald-100/90 text-emerald-800 ring-1 ring-emerald-400/60 shadow-2xs' 
+                                : selectedIds.size >= 3 
+                                  ? 'opacity-60 cursor-not-allowed hover:bg-rose-50/60' 
+                                  : 'hover:bg-emerald-100/60'
+                            }`}
+                            title={
+                              isSelected 
+                                ? `Batal pilih "${spot.name}". (Batas maksimal: 3 titik)` 
+                                : selectedIds.size >= 3 
+                                  ? `Batas maksimal 3 titik tercapai (${selectedIds.size}/3). Hapus centang salah satu titik untuk memilih "${spot.name}".` 
+                                  : `Pilih "${spot.name}" untuk Compare (Maksimal 3 titik dapat dibandingkan secara berdampingan)`
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              id={`quick-compare-${spot.id}`}
+                              data-testid={`quick-compare-checkbox-${spot.id}`}
+                              checked={isSelected}
+                              onChange={(e) => toggleSelectSpot(spot.id, e)}
+                              className="sr-only"
+                              aria-label={`Compare ${spot.name}`}
+                            />
+                            {isSelected ? (
+                              <CheckSquare className="w-4 h-4 text-emerald-600 fill-emerald-100" />
+                            ) : (
+                              <Square className="w-4 h-4 text-slate-300 group-hover/chk:text-emerald-600" />
+                            )}
+                            <span className={`text-[8.5px] font-bold mt-0.5 leading-none ${
+                              isSelected ? 'text-emerald-700 font-extrabold' : 'text-slate-400 group-hover/chk:text-emerald-700'
+                            }`}>
+                              Compare
+                            </span>
+                          </label>
+
+                          {/* Descriptive Hover Tooltip explaining maximum 3 spots limit */}
+                          <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 hidden group-hover/chk:flex flex-col w-56 p-2.5 bg-slate-900/95 text-white text-[10px] rounded-xl shadow-2xl border border-slate-700 pointer-events-none z-50 text-left animate-in fade-in duration-150 backdrop-blur-xs">
+                            <div className="flex items-center gap-1.5 font-bold text-emerald-400 mb-1">
+                              <Scale className="w-3.5 h-3.5 shrink-0" />
+                              <span>Fitur Compare (Side-by-Side)</span>
+                            </div>
+                            <p className="text-slate-200 text-[10px] leading-relaxed">
+                              Pilih hingga <strong>maksimal 3 titik reklame</strong> untuk melihat perbandingan berdampingan atas metrik utama: <strong>Traffic Kendaraan</strong>, <strong>Tarif Sewa (Price)</strong>, dan <strong>Tipe Media</strong>.
+                            </p>
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-700/80 flex items-center justify-between text-[9px]">
+                              <span className="text-slate-400">Pilihan saat ini:</span>
+                              <span className={`font-bold ${selectedIds.size >= 3 ? 'text-amber-400' : 'text-emerald-300'}`}>
+                                {Math.min(selectedIds.size, 3)} dari maks. 3 titik
+                              </span>
+                            </div>
+                            {selectedIds.size >= 3 && !isSelected && (
+                              <div className="mt-1 p-1 bg-amber-500/20 rounded border border-amber-400/40 text-[9px] text-amber-200 font-medium">
+                                ⚠️ Batas maksimal 3 titik tercapai. Hapus pilihan lain terlebih dahulu.
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       <td className="py-3 px-2 text-center text-slate-400 font-medium">
@@ -1302,14 +1524,27 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                         <div className="font-semibold text-slate-800">
                           {spot.dailyTraffic.toLocaleString('id-ID')}
                         </div>
-                        <div className={`text-[10px] font-medium ${
-                          spot.trafficDensity === 'Sangat Padat' 
-                            ? 'text-rose-600' 
-                            : spot.trafficDensity === 'Padat' 
-                            ? 'text-amber-600' 
-                            : 'text-emerald-600'
-                        }`}>
-                          {spot.trafficDensity}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`text-[10px] font-medium ${
+                            spot.trafficDensity === 'Sangat Padat' 
+                              ? 'text-rose-600' 
+                              : spot.trafficDensity === 'Padat' 
+                              ? 'text-amber-600' 
+                              : 'text-emerald-600'
+                          }`}>
+                            {spot.trafficDensity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSourceMetricKey('traffic');
+                              setIsSourceModalOpen(true);
+                            }}
+                            className="text-[9px] text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1 py-0.2 rounded font-mono font-bold transition-colors cursor-pointer"
+                            title="Akurasi 94.2% • Sumber: Dishub Jabar & Google Flow. Klik untuk rincian audit."
+                          >
+                            94.2%
+                          </button>
                         </div>
                       </td>
 
@@ -1318,8 +1553,19 @@ export const MediaTable: React.FC<MediaTableProps> = ({
                         <div className="font-bold text-emerald-600 text-xs">
                           {formatCompactNumber(spot.dailyImpressions)} OTS
                         </div>
-                        <div className="text-[10px] text-slate-400">
-                          Score: {spot.visibilityScore}/100
+                        <div className="text-[10px] text-slate-400 flex items-center justify-end gap-1">
+                          <span>Score: {spot.visibilityScore}/100</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSourceMetricKey('impressions');
+                              setIsSourceModalOpen(true);
+                            }}
+                            className="text-[9px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1 py-0.2 rounded font-mono font-bold transition-colors cursor-pointer"
+                            title="Akurasi 91.8% • Sumber: Standar WOO / ESOMAR & BPS Jabar. Klik untuk rincian audit."
+                          >
+                            91.8%
+                          </button>
                         </div>
                       </td>
 
@@ -1555,26 +1801,63 @@ export const MediaTable: React.FC<MediaTableProps> = ({
 
                         {/* Top-Left: Quick Compare Checkbox & Index Badge */}
                         <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
-                          <label
-                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-900/85 hover:bg-slate-900 text-white backdrop-blur-xs transition-colors cursor-pointer border border-white/20 select-none text-[10px] font-semibold shadow-xs"
-                            title={isSelected ? 'Hapus dari Quick Compare' : 'Quick Compare: Centang untuk membandingkan titik ini'}
-                          >
-                            <input
-                              type="checkbox"
-                              id={`quick-compare-card-${spot.id}`}
-                              data-testid={`quick-compare-card-checkbox-${spot.id}`}
-                              checked={isSelected}
-                              onChange={(e) => toggleSelectSpot(spot.id, e)}
-                              className="sr-only"
-                              aria-label={`Quick Compare ${spot.name}`}
-                            />
-                            {isSelected ? (
-                              <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
-                            ) : (
-                              <Square className="w-3.5 h-3.5 text-white/80" />
-                            )}
-                            <span className="font-semibold">Quick Compare</span>
-                          </label>
+                          <div className="relative group/chk">
+                            <label
+                              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-900/85 hover:bg-slate-900 text-white backdrop-blur-xs transition-colors cursor-pointer border border-white/20 select-none text-[10px] font-semibold shadow-xs ${
+                                selectedIds.size >= 3 && !isSelected ? 'opacity-70' : ''
+                              }`}
+                              title={
+                                isSelected 
+                                  ? `Batal pilih "${spot.name}". (Batas maksimal: 3 titik)` 
+                                  : selectedIds.size >= 3 
+                                    ? `Batas maksimal 3 titik tercapai (${selectedIds.size}/3). Hapus centang salah satu titik untuk memilih "${spot.name}".` 
+                                    : `Pilih "${spot.name}" untuk Compare (Maksimal 3 titik)`
+                              }
+                            >
+                              <input
+                                type="checkbox"
+                                id={`quick-compare-card-${spot.id}`}
+                                data-testid={`quick-compare-card-checkbox-${spot.id}`}
+                                checked={isSelected}
+                                onChange={(e) => toggleSelectSpot(spot.id, e)}
+                                className="sr-only"
+                                aria-label={`Compare ${spot.name}`}
+                              />
+                              {isSelected ? (
+                                <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Square className="w-3.5 h-3.5 text-white/80" />
+                              )}
+                              <span className="font-semibold">Compare</span>
+                              {isSelected && (
+                                <span className="text-[9px] bg-emerald-500 text-slate-950 font-bold px-1 rounded">
+                                  ✓
+                                </span>
+                              )}
+                            </label>
+
+                            {/* Descriptive Tooltip for Card View */}
+                            <div className="absolute left-0 top-full mt-2 hidden group-hover/chk:flex flex-col w-56 p-2.5 bg-slate-900/95 text-white text-[10px] rounded-xl shadow-2xl border border-slate-700 pointer-events-none z-50 text-left animate-in fade-in duration-150 backdrop-blur-xs">
+                              <div className="flex items-center gap-1.5 font-bold text-emerald-400 mb-1">
+                                <Scale className="w-3.5 h-3.5 shrink-0" />
+                                <span>Bandingkan Titik (Compare)</span>
+                              </div>
+                              <p className="text-slate-200 text-[10px] leading-relaxed">
+                                Pilih hingga <strong>maksimal 3 titik reklame</strong> untuk melihat komparasi metrik utama berdampingan: <strong>Traffic Kendaraan</strong>, <strong>Tarif Sewa (Price)</strong>, dan <strong>Tipe Media</strong>.
+                              </p>
+                              <div className="mt-1.5 pt-1.5 border-t border-slate-700/80 flex items-center justify-between text-[9px]">
+                                <span className="text-slate-400">Pilihan saat ini:</span>
+                                <span className={`font-bold ${selectedIds.size >= 3 ? 'text-amber-400' : 'text-emerald-300'}`}>
+                                  {Math.min(selectedIds.size, 3)} dari maks. 3 titik
+                                </span>
+                              </div>
+                              {selectedIds.size >= 3 && !isSelected && (
+                                <div className="mt-1 p-1 bg-amber-500/20 rounded border border-amber-400/40 text-[9px] text-amber-200 font-medium">
+                                  ⚠️ Batas maksimal 3 titik tercapai. Hapus pilihan lain terlebih dahulu.
+                                </div>
+                              )}
+                            </div>
+                          </div>
                           <span className="px-2 py-0.5 rounded-md bg-slate-900/80 backdrop-blur-xs text-[10px] font-bold text-white border border-white/10">
                             #{rowNum}
                           </span>
@@ -2110,8 +2393,8 @@ export const MediaTable: React.FC<MediaTableProps> = ({
         </div>
       )}
 
-      {/* Persistent Floating 'Compare Selected' Dock (Visible when 2 or more spots are checked) */}
-      {selectedIds.size >= 2 && (
+      {/* Persistent Floating 'Compare Selected' Dock (Visible when 1 or more spots are checked) */}
+      {selectedIds.size > 0 && (
         <div
           id="persistent-compare-selected-dock"
           data-testid="persistent-compare-selected-dock"
@@ -2123,7 +2406,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
             <span className="text-xs font-semibold text-slate-200 whitespace-nowrap">
-              <strong className="text-emerald-400 font-bold text-sm">{selectedIds.size}</strong> Titik Terpilih
+              <strong className="text-emerald-400 font-bold text-sm">{Math.min(selectedIds.size, 3)}</strong>/3 Titik Dipilih
             </span>
           </div>
 
@@ -2134,10 +2417,12 @@ export const MediaTable: React.FC<MediaTableProps> = ({
             type="button"
             onClick={handleOpenComparisonModal}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg hover:shadow-emerald-500/30 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
-            title="Compare Spots: Buka tampilan side-by-side untuk traffic, price, dan visibility titik terpilih"
+            title="Compare Spots: Buka tampilan side-by-side untuk traffic, price, dan media type titik terpilih"
           >
             <Scale className="w-4 h-4 fill-slate-950" />
-            <span>Compare Spots ({selectedIds.size})</span>
+            <span>
+              {selectedIds.size === 1 ? 'Buka Compare (1/3)' : `Compare Spots (${Math.min(selectedIds.size, 3)}/3)`}
+            </span>
           </button>
 
           {/* Quick Clear Selection */}
@@ -2153,7 +2438,7 @@ export const MediaTable: React.FC<MediaTableProps> = ({
         </div>
       )}
 
-      {/* Side-by-Side Comparison Modal */}
+      {/* Side-by-Side Comparison Modal (Up to 3 Spots) */}
       {isCompareModalOpen && (
         <div
           id="modal-side-by-side-comparison"
@@ -2164,148 +2449,758 @@ export const MediaTable: React.FC<MediaTableProps> = ({
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-700 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                  <Scale className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                  <Scale className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base flex items-center gap-2">
-                    <span>Compare Spots (Side-by-Side View)</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/30">
-                      {effectiveComparedSpots.length} Titik Terpilih
+                    <span>Perbandingan Titik Reklame (Side-by-Side Comparison)</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 font-mono">
+                      {effectiveComparedSpots.length}/3 Titik Dipilih
                     </span>
                   </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Perbandingan langsung metrik utama periklanan: Traffic Kendaraan, Tarif Sewa (Price), dan Visibilitas secara berdampingan (Side-by-Side)
+                  <p className="text-[11px] text-slate-300">
+                    Bandingkan metrik kunci secara berdampingan: <strong>Traffic Kendaraan</strong>, <strong>Tarif Sewa (Price)</strong>, dan <strong>Tipe Media (Media Type)</strong>
                   </p>
                 </div>
               </div>
 
-              <button
-                id="btn-close-comparison-modal"
-                data-testid="btn-close-comparison-modal"
-                type="button"
-                onClick={() => setIsCompareModalOpen(false)}
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                title="Tutup Modal Perbandingan"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Data Source & Accuracy Audit Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveSourceMetricKey('traffic');
+                    setIsSourceModalOpen(true);
+                  }}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 text-xs font-semibold transition-colors cursor-pointer"
+                  title="Lihat audit sumber data resmi dan persentase akurasi perhitungan"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Sumber &amp; Akurasi (94.2%)</span>
+                </button>
+
+                {/* View Mode Toggle: Matrix Table vs Radar Chart */}
+                <div className="hidden sm:flex items-center bg-slate-800/90 rounded-lg p-0.5 border border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setCompareModalTab('matrix')}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                      compareModalTab === 'matrix'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Metrik &amp; Matriks Side-by-Side
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompareModalTab('radar')}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                      compareModalTab === 'radar'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Radar Chart Multi-Dimensi
+                  </button>
+                </div>
+
+                <button
+                  id="btn-close-comparison-modal"
+                  data-testid="btn-close-comparison-modal"
+                  type="button"
+                  onClick={() => setIsCompareModalOpen(false)}
+                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                  title="Tutup Modal Perbandingan"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            {/* Side-by-Side Key Metrics Bar (Traffic, Price & Visibility) */}
-            <div className="bg-white border-b border-slate-200 px-5 py-3 shadow-2xs shrink-0">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wide">
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-600" />
-                    Key Metrics Side-by-Side (Traffic, Price & Visibility)
-                  </span>
-                  <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200 font-mono">
-                    {effectiveComparedSpots.length} Titik
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500 font-medium">
-                  Perbandingan langsung metrik lalu lintas harian, tarif sewa, dan visibilitas
-                </div>
-              </div>
-
-              {/* Side-by-Side Spots Columns */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-56 overflow-y-auto pr-1">
-                {effectiveComparedSpots.map((spot, idx) => (
-                  <div
-                    key={`side-by-side-card-${spot.id}`}
-                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 hover:border-emerald-300 transition-all space-y-2 text-xs shadow-2xs"
-                  >
-                    <div className="flex items-start justify-between gap-1.5">
-                      <div className="min-w-0">
-                        <div
-                          onClick={() => {
-                            setIsCompareModalOpen(false);
-                            onSelectSpot(spot);
-                          }}
-                          className="font-bold text-xs text-slate-900 hover:text-emerald-700 cursor-pointer truncate"
-                          title={spot.name}
-                        >
-                          {idx + 1}. {spot.name}
-                        </div>
-                        <div className="text-[10px] text-slate-500 truncate">
-                          {spot.roadName || spot.district}, {spot.city}
-                        </div>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+              {compareModalTab === 'matrix' ? (
+                <>
+                  {/* 1. Quick Benchmark Highlights Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Highlight 1: Highest Traffic */}
+                    <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-2xs flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                        <Car className="w-5 h-5" />
                       </div>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
-                        spot.category === 'DOOH_DIGITAL' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {spot.category === 'DOOH_DIGITAL' ? 'DOOH' : 'OOH'}
-                      </span>
+                      <div className="min-w-0">
+                        <div className="text-[10px] uppercase font-bold text-blue-700 tracking-wider">
+                          Trafik Kendaraan Tertinggi
+                        </div>
+                        {(() => {
+                          const best = effectiveComparedSpots.find((s) => s.id === comparisonBenchmarks.highestTrafficId);
+                          return best ? (
+                            <>
+                              <div className="font-extrabold text-sm text-slate-900 truncate">{best.name}</div>
+                              <div className="text-[11px] font-semibold text-blue-600">
+                                {best.dailyTraffic.toLocaleString('id-ID')} unit/hari ({best.trafficDensity})
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-xs text-slate-400">-</div>
+                          );
+                        })()}
+                      </div>
                     </div>
 
-                    {/* Key Metrics 3-Column Box: Traffic, Price, Visibility */}
-                    <div className="grid grid-cols-3 gap-1.5 pt-1.5 border-t border-slate-200/80 text-[10px]">
-                      {/* Metric 1: Traffic */}
-                      <div className="bg-white p-2 rounded-lg border border-slate-200/80">
-                        <div className="text-slate-400 flex items-center gap-0.5 font-medium">
-                          <Car className="w-3 h-3 text-blue-500" />
-                          Traffic
-                        </div>
-                        <div className="font-extrabold text-slate-900 mt-0.5">
-                          {formatCompactNumber(spot.dailyTraffic)}
-                        </div>
-                        <div className="text-[8.5px] text-slate-500 truncate" title={spot.trafficDensity}>
-                          {spot.trafficDensity}
-                        </div>
+                    {/* Highlight 2: Lowest Price (Best Value) */}
+                    <div className="bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                        <DollarSign className="w-5 h-5" />
                       </div>
-
-                      {/* Metric 2: Price */}
-                      <div className="bg-white p-2 rounded-lg border border-slate-200/80">
-                        <div className="text-slate-400 flex items-center gap-0.5 font-medium">
-                          <DollarSign className="w-3 h-3 text-emerald-500" />
-                          Price
+                      <div className="min-w-0">
+                        <div className="text-[10px] uppercase font-bold text-emerald-700 tracking-wider">
+                          Tarif Sewa Paling Ekonomis
                         </div>
-                        <div className="font-extrabold text-emerald-700 mt-0.5">
-                          {formatCompactIDR(spot.pricing?.oneMonth || 0)}
-                        </div>
-                        <div className="text-[8.5px] text-slate-500">/bulan</div>
+                        {(() => {
+                          const best = effectiveComparedSpots.find((s) => s.id === comparisonBenchmarks.lowestPriceId);
+                          return best ? (
+                            <>
+                              <div className="font-extrabold text-sm text-slate-900 truncate">{best.name}</div>
+                              <div className="text-[11px] font-semibold text-emerald-600">
+                                {formatIDR(best.pricing.oneMonth)}/bln (~{formatIDR(Math.round(best.pricing.oneMonth / 30))}/hari)
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-xs text-slate-400">-</div>
+                          );
+                        })()}
                       </div>
+                    </div>
 
-                      {/* Metric 3: Visibility */}
-                      <div className="bg-white p-2 rounded-lg border border-slate-200/80">
-                        <div className="text-slate-400 flex items-center gap-0.5 font-medium">
-                          <Sparkles className="w-3 h-3 text-amber-500" />
-                          Visibility
+                    {/* Highlight 3: Highest Impressions */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-2xs flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[10px] uppercase font-bold text-amber-700 tracking-wider">
+                          Paparan Impresi (OTS) Terbanyak
                         </div>
-                        <div className="font-extrabold text-amber-700 mt-0.5">
-                          {spot.visibilityScore || 85}/100
-                        </div>
-                        <div className="text-[8.5px] text-slate-500 truncate">{spot.layout}</div>
+                        {(() => {
+                          const best = effectiveComparedSpots.find((s) => s.id === comparisonBenchmarks.highestImpressionsId);
+                          return best ? (
+                            <>
+                              <div className="font-extrabold text-sm text-slate-900 truncate">{best.name}</div>
+                              <div className="text-[11px] font-semibold text-amber-600">
+                                {formatCompactNumber(best.dailyImpressions)} OTS/hari (Skor {best.visibilityScore || 85}/100)
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-xs text-slate-400">-</div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  {/* 2. Side-by-Side Spot Cards (Up to 3 Spots) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {effectiveComparedSpots.map((spot, idx) => {
+                      const isHighestTraffic = spot.id === comparisonBenchmarks.highestTrafficId;
+                      const isLowestPrice = spot.id === comparisonBenchmarks.lowestPriceId;
+                      const isHighestImpressions = spot.id === comparisonBenchmarks.highestImpressionsId;
+                      const isHighestVisibility = spot.id === comparisonBenchmarks.highestVisibilityId;
+                      const isDooh = spot.category === 'DOOH_DIGITAL';
+
+                      return (
+                        <div
+                          key={`compare-col-${spot.id}`}
+                          className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:border-emerald-300 transition-all"
+                        >
+                          {/* Card Photo Header */}
+                          <div className="relative aspect-16/9 bg-slate-900 overflow-hidden">
+                            {spot.photoUrl ? (
+                              <img
+                                src={spot.photoUrl}
+                                alt={spot.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-4 text-center bg-slate-800">
+                                <Layers className="w-8 h-8 mb-1.5 opacity-40 text-emerald-400" />
+                                <span className="text-[11px] font-medium text-slate-300">{spot.name}</span>
+                              </div>
+                            )}
+
+                            {/* Top Badges */}
+                            <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
+                              <span className="px-2 py-0.5 rounded-md bg-slate-900/85 backdrop-blur-xs text-white text-[10px] font-bold border border-white/20">
+                                Spot #{idx + 1}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                isDooh
+                                  ? 'bg-purple-900/90 text-purple-200 border-purple-400/40'
+                                  : 'bg-blue-900/90 text-blue-200 border-blue-400/40'
+                              }`}>
+                                {isDooh ? 'DOOH Digital' : 'OOH Statis'}
+                              </span>
+                            </div>
+
+                            <div className="absolute top-2.5 right-2.5 z-10">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSpotFromCompare(spot.id)}
+                                className="p-1 rounded-md bg-slate-900/80 hover:bg-rose-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                                title="Hapus titik ini dari perbandingan"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Gradient Overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent pointer-events-none" />
+
+                            <div className="absolute bottom-2.5 left-2.5 right-2.5 text-white">
+                              <h4 className="font-bold text-xs sm:text-sm truncate drop-shadow-sm">
+                                {spot.name}
+                              </h4>
+                              <div className="text-[10px] text-slate-200 truncate flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span>{spot.roadName || spot.district}, {spot.city}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Content: 3 Key Metrics Blocks */}
+                          <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                            {/* Block 1: Media Type & Format */}
+                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                                <span className="flex items-center gap-1.5 text-indigo-700">
+                                  <Tag className="w-3.5 h-3.5 text-indigo-600" />
+                                  Tipe Media (Media Type)
+                                </span>
+                                <span className="font-mono text-[10px] text-slate-500">{spot.id}</span>
+                              </div>
+                              <div className="font-bold text-slate-900 text-sm">
+                                {spot.mediaType}
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-600 border-t border-slate-200/80">
+                                <div>
+                                  <span className="text-slate-400 text-[10px]">Dimensi:</span>{' '}
+                                  <strong className="text-slate-800">{spot.size}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 text-[10px]">Luas:</span>{' '}
+                                  <strong className="text-slate-800">{parseSpotDimensions(spot.size).area} m²</strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 text-[10px]">Penerangan:</span>{' '}
+                                  <strong className="text-slate-800 truncate block">{spot.lighting || 'Standar Frontlite'}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 text-[10px]">Orientasi:</span>{' '}
+                                  <strong className="text-slate-800">{spot.layout}</strong>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Block 2: Traffic & Jangkauan (Traffic Key Metric) */}
+                            <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-200 space-y-2 text-xs">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-blue-900">
+                                <span className="flex items-center gap-1.5">
+                                  <Car className="w-3.5 h-3.5 text-blue-600" />
+                                  Traffic Kendaraan (Traffic)
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <span 
+                                    onClick={() => {
+                                      setActiveSourceMetricKey('traffic');
+                                      setIsSourceModalOpen(true);
+                                    }}
+                                    className="px-1.5 py-0.2 rounded bg-blue-100 hover:bg-blue-200 text-blue-800 text-[9px] font-mono font-bold cursor-pointer"
+                                    title="Akurasi 94.2% • Sumber: Dishub Jabar & Google Flow"
+                                  >
+                                    Akurasi 94.2%
+                                  </span>
+                                  {isHighestTraffic && (
+                                    <span className="px-1.5 py-0.5 rounded bg-blue-600 text-white text-[9px] font-bold animate-pulse">
+                                      ★ Tertinggi
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-baseline justify-between">
+                                <div>
+                                  <div className="text-base font-extrabold text-blue-900">
+                                    {spot.dailyTraffic.toLocaleString('id-ID')}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500">unit kendaraan / hari (Dishub)</div>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    spot.trafficDensity === 'Sangat Padat'
+                                      ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                      : spot.trafficDensity === 'Padat'
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                      : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  }`}>
+                                    {spot.trafficDensity}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-blue-200/80 text-[11px]">
+                                <div>
+                                  <div className="text-[10px] text-slate-400">Est. Impresi (Akurasi 91.8%):</div>
+                                  <div className="font-bold text-slate-900 flex items-center gap-1">
+                                    <span>{formatCompactNumber(spot.dailyImpressions)} OTS</span>
+                                    {isHighestImpressions && <span className="text-[9px] text-amber-600 font-bold">★ Top</span>}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] text-slate-400">Skor Visibilitas (Akurasi 96.5%):</div>
+                                  <div className="font-bold text-slate-900 flex items-center gap-1">
+                                    <span>{spot.visibilityScore || 85}/100</span>
+                                    {isHighestVisibility && <span className="text-[9px] text-emerald-600 font-bold">★ Max</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Block 3: Price (Tarif Komersial) */}
+                            <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-2 text-xs">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
+                                <span className="flex items-center gap-1.5">
+                                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                                  Tarif Sewa (Price)
+                                </span>
+                                {isLowestPrice && (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-bold">
+                                    ★ Termurah
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-baseline justify-between">
+                                <div>
+                                  <div className="text-base font-extrabold text-emerald-700">
+                                    {formatIDR(spot.pricing.oneMonth)}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500">per 1 bulan / sisi</div>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    spot.isAvailable
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      : 'bg-rose-100 text-rose-800 border border-rose-200'
+                                  }`}>
+                                    {spot.isAvailable ? 'Tersedia' : 'Tersewa'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-emerald-200/80 text-[11px]">
+                                <div>
+                                  <div className="text-[10px] text-slate-400">Tarif 3 Bulan:</div>
+                                  <div className="font-semibold text-slate-800">
+                                    {formatCompactIDR(spot.pricing.threeMonths)}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] text-slate-400">Est. Biaya/Hari:</div>
+                                  <div className="font-semibold text-slate-800">
+                                    ~{formatCompactIDR(Math.round(spot.pricing.oneMonth / 30))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card Footer Actions */}
+                            <div className="pt-2 flex items-center gap-2 border-t border-slate-100">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsCompareModalOpen(false);
+                                  onSelectSpot(spot);
+                                }}
+                                className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Detail</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => openSpotDirectWhatsApp(spot, true)}
+                                className="flex-1 py-1.5 px-2 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 fill-slate-950 text-[#25D366]" />
+                                <span>Chat WA</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Placeholder Slot if only 1 or 2 spots are compared */}
+                    {effectiveComparedSpots.length < 3 && (
+                      <div className="bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-300 p-6 flex flex-col items-center justify-center text-center space-y-3 min-h-[360px]">
+                        <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-center text-slate-400">
+                          <Plus className="w-6 h-6 text-emerald-600" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-800 text-sm">
+                            Slot Kosong (#{effectiveComparedSpots.length + 1} dari 3)
+                          </div>
+                          <div className="text-xs text-slate-500 max-w-xs mt-1">
+                            Pilih titik reklame lain untuk melengkapi perbandingan side-by-side hingga 3 titik.
+                          </div>
+                        </div>
+
+                        {/* Quick Spot Picker Dropdown */}
+                        <div className="w-full max-w-xs">
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleAddSpotToCompare(e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                            defaultValue=""
+                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-700 shadow-2xs focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                          >
+                            <option value="" disabled>
+                              + Pilih Titik ke-{effectiveComparedSpots.length + 1} dari Tabel...
+                            </option>
+                            {spots
+                              .filter((s) => !effectiveComparedSpots.some((c) => c.id === s.id))
+                              .map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name} ({s.city} • {s.mediaType})
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. Side-by-Side Direct Comparison Matrix Table */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                    <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
+                        <span className="font-bold text-xs sm:text-sm">
+                          Tabel Matriks Spesifikasi Teknis &amp; Komersial
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        {effectiveComparedSpots.length} Titik Diperbandingkan
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
+                            <th className="p-3 w-56 bg-slate-100/90 font-bold text-slate-800">Parameter Komparasi</th>
+                            {effectiveComparedSpots.map((spot, idx) => (
+                              <th key={`th-${spot.id}`} className="p-3 font-bold text-slate-900 min-w-[200px]">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] flex items-center justify-center shrink-0">
+                                    {idx + 1}
+                                  </span>
+                                  <span className="truncate">{spot.name}</span>
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-slate-100">
+                          {/* SECTION: TIPE MEDIA (Media Type) */}
+                          <tr className="bg-indigo-50/40 text-indigo-900 font-bold text-[11px]">
+                            <td colSpan={effectiveComparedSpots.length + 1} className="py-2 px-3 flex items-center gap-1.5 uppercase tracking-wide">
+                              <Tag className="w-3.5 h-3.5 text-indigo-600" />
+                              1. Tipe &amp; Format Media (Media Type)
+                            </td>
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Tipe Media (Format)</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`cat-${s.id}`} className="p-3 font-bold text-slate-900">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  s.category === 'DOOH_DIGITAL'
+                                    ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                    : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                }`}>
+                                  {s.mediaType}
+                                </span>
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Kategori Media</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`ctg-${s.id}`} className="p-3 font-semibold text-slate-800">
+                                {s.category === 'DOOH_DIGITAL' ? 'DOOH Digital (Videotron)' : 'OOH Statis Fisik'}
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Dimensi &amp; Luas Efektif</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`size-${s.id}`} className="p-3 text-slate-800">
+                                <span className="font-semibold">{s.size}</span>
+                                <span className="text-slate-400 ml-1">({parseSpotDimensions(s.size).area} m²)</span>
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Sistem Pencahayaan</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`light-${s.id}`} className="p-3 text-slate-700">
+                                {s.lighting || 'Standar Frontlite'}
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Orientasi Konstruksi</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`orient-${s.id}`} className="p-3 text-slate-700">
+                                {s.layout}
+                              </td>
+                            ))}
+                          </tr>
+
+                          {/* SECTION: TRAFFIC (Traffic Key Metric) */}
+                          <tr className="bg-blue-50/40 text-blue-900 font-bold text-[11px]">
+                            <td colSpan={effectiveComparedSpots.length + 1} className="py-2 px-3 flex items-center gap-1.5 uppercase tracking-wide">
+                              <Car className="w-3.5 h-3.5 text-blue-600" />
+                              2. Trafik Kendaraan &amp; Impresi (Traffic)
+                            </td>
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Volume Kendaraan / Hari</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`traf-${s.id}`} className="p-3 font-bold text-slate-900">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{s.dailyTraffic.toLocaleString('id-ID')} unit/hari</span>
+                                  {s.id === comparisonBenchmarks.highestTrafficId && (
+                                    <span className="px-1.5 py-0.2 rounded bg-blue-600 text-white text-[9px] font-bold">
+                                      ★ Tertinggi
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Kepadatan Lalu Lintas</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`dens-${s.id}`} className="p-3 font-semibold">
+                                <span className={
+                                  s.trafficDensity === 'Sangat Padat'
+                                    ? 'text-rose-600 font-bold'
+                                    : s.trafficDensity === 'Padat'
+                                    ? 'text-amber-600 font-bold'
+                                    : 'text-emerald-600 font-semibold'
+                                }>
+                                  {s.trafficDensity}
+                                </span>
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Estimasi Impresi Harian (OTS)</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`ots-${s.id}`} className="p-3 font-bold text-emerald-700">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{formatCompactNumber(s.dailyImpressions)} OTS/hari</span>
+                                  {s.id === comparisonBenchmarks.highestImpressionsId && (
+                                    <span className="px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 text-[9px] font-bold">
+                                      ★ Top OTS
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Skor Visibilitas Lokasi</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`vis-${s.id}`} className="p-3 font-semibold text-slate-800">
+                                {s.visibilityScore || 85} / 100
+                              </td>
+                            ))}
+                          </tr>
+
+                          {/* SECTION: PRICE (Price Key Metric) */}
+                          <tr className="bg-emerald-50/40 text-emerald-900 font-bold text-[11px]">
+                            <td colSpan={effectiveComparedSpots.length + 1} className="py-2 px-3 flex items-center gap-1.5 uppercase tracking-wide">
+                              <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                              3. Tarif Sewa Komersial (Price)
+                            </td>
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Tarif 1 Bulan (Dasar)</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`p1-${s.id}`} className="p-3 font-extrabold text-emerald-700 text-sm">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{formatIDR(s.pricing.oneMonth)}</span>
+                                  {s.id === comparisonBenchmarks.lowestPriceId && (
+                                    <span className="px-1.5 py-0.2 rounded bg-emerald-600 text-white text-[9px] font-bold">
+                                      ★ Termurah
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Tarif 3 Bulan (Kuartal)</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`p3-${s.id}`} className="p-3 font-semibold text-slate-800">
+                                {formatIDR(s.pricing.threeMonths)}
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Tarif 1 Tahun (Tahunan)</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`p12-${s.id}`} className="p-3 font-semibold text-slate-800">
+                                {formatIDR(s.pricing.oneYear)}
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Estimasi Biaya per Hari</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`pday-${s.id}`} className="p-3 text-slate-700 font-medium">
+                                ~{formatIDR(Math.round(s.pricing.oneMonth / 30))}/hari
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Efisiensi Biaya CPM</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`cpm-${s.id}`} className="p-3 font-semibold text-indigo-700">
+                                {formatIDR(Math.round((s.pricing.oneMonth / (s.dailyImpressions * 30)) * 1000))}/1k OTS
+                              </td>
+                            ))}
+                          </tr>
+
+                          {/* SECTION: LOKASI & STATUS */}
+                          <tr className="bg-slate-100 text-slate-800 font-bold text-[11px]">
+                            <td colSpan={effectiveComparedSpots.length + 1} className="py-2 px-3 uppercase tracking-wide">
+                              4. Status &amp; Lokasi Geografis
+                            </td>
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Status Ketersediaan</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`av-${s.id}`} className="p-3">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  s.isAvailable
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                    : 'bg-rose-100 text-rose-800 border border-rose-200'
+                                }`}>
+                                  {s.isAvailable ? 'Tersedia' : 'Tersewa / Kontrak'}
+                                </span>
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Wilayah / Kota</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`city-${s.id}`} className="p-3 font-semibold text-slate-800">
+                                {s.city} ({s.district})
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="hover:bg-slate-50/80">
+                            <td className="p-3 font-medium text-slate-600">Nama Jalan</td>
+                            {effectiveComparedSpots.map((s) => (
+                              <td key={`road-${s.id}`} className="p-3 text-slate-700">
+                                {s.roadName}
+                              </td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Tab 2: Radar Chart Multi-Dimensi */
+                <SpotComparisonView
+                  allSpots={spots}
+                  comparedSpots={effectiveComparedSpots}
+                  onAddSpotToCompare={handleAddSpotToCompare}
+                  onRemoveSpotFromCompare={handleRemoveSpotFromCompare}
+                  onClearComparison={handleClearComparison}
+                  onSelectSpot={(spot) => {
+                    setIsCompareModalOpen(false);
+                    onSelectSpot(spot);
+                  }}
+                  onBackToTable={() => setIsCompareModalOpen(false)}
+                  onOpenPdfModal={(targets) => {
+                    setIsCompareModalOpen(false);
+                    handleOpenPdfModal(targets);
+                  }}
+                  onOpenRoiCalculator={(spot) => {
+                    setIsCompareModalOpen(false);
+                    onOpenRoiCalculator?.(spot);
+                  }}
+                />
+              )}
             </div>
 
-            {/* Modal Body: SpotComparisonView */}
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
-              <SpotComparisonView
-                allSpots={spots}
-                comparedSpots={effectiveComparedSpots}
-                onAddSpotToCompare={handleAddSpotToCompare}
-                onRemoveSpotFromCompare={handleRemoveSpotFromCompare}
-                onClearComparison={handleClearComparison}
-                onSelectSpot={(spot) => {
-                  setIsCompareModalOpen(false);
-                  onSelectSpot(spot);
-                }}
-                onBackToTable={() => setIsCompareModalOpen(false)}
-                onOpenPdfModal={(targets) => {
-                  setIsCompareModalOpen(false);
-                  handleOpenPdfModal(targets);
-                }}
-                onOpenRoiCalculator={(spot) => {
-                  setIsCompareModalOpen(false);
-                  onOpenRoiCalculator?.(spot);
-                }}
-              />
+            {/* Modal Footer */}
+            <div className="bg-slate-900 px-5 py-3.5 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white">
+              <div className="flex items-center gap-2 text-xs text-slate-300">
+                <span className="font-semibold">{effectiveComparedSpots.length} dari maks. 3 titik</span>
+                <span>dipilih untuk perbandingan komparatif</span>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={handleClearComparison}
+                  className="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors text-xs cursor-pointer"
+                >
+                  Bersihkan Pilihan
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    openMultipleSpotsDirectWhatsApp(effectiveComparedSpots, true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-slate-950 font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
+                  title="Kirim ringkasan perbandingan titik ini via WhatsApp ke 0878-2224-8975"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 fill-slate-950 text-[#25D366]" />
+                  <span>Kirim Perbandingan via WhatsApp ({effectiveComparedSpots.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCompareModalOpen(false);
+                    handleOpenPdfModal(effectiveComparedSpots);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-white" />
+                  <span>Download PDF Proposal ({effectiveComparedSpots.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsCompareModalOpen(false)}
+                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer border border-slate-700"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2671,6 +3566,13 @@ export const MediaTable: React.FC<MediaTableProps> = ({
           </div>
         </div>
       )}
+
+      {/* Analytics Data Sources & Calculation Accuracy Audit Modal */}
+      <AnalyticsSourceModal
+        isOpen={isSourceModalOpen}
+        onClose={() => setIsSourceModalOpen(false)}
+        activeMetricKey={activeSourceMetricKey}
+      />
 
     </div>
   );

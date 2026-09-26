@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Print Header Banner - Hidden on screen by default */
+.print-only-header {
+  display: none;
+}
+
 /* ==========================================================================
    Print-Friendly Media Query Styles for Reports & Proposals
    ========================================================================== */
@@ -54,6 +59,44 @@
   .md\:pb-16,
   .pb-16 {
     padding-bottom: 0 !important;
+  }
+
+  /* Table formatting for crisp paper printing */
+  .overflow-x-auto,
+  .overflow-y-auto {
+    overflow: visible !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tbody {
+    display: table-row-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  th, td {
+    padding: 6px 8px !important;
+    font-size: 8.5pt !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+  }
+
+  th {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #cbd5e1 !important;
   }
 
   /* Print Header Banner - Highlight key identity */

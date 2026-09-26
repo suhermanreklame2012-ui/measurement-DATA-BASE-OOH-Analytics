@@ -57,7 +57,8 @@ import {
   CheckCheck,
   RefreshCw,
   Award,
-  ShieldCheck
+  ShieldCheck,
+  Printer
 } from 'lucide-react';
 import { calculateDemandMetrics } from '../services/availabilityAlertService';
 import { parseSpotDimensions } from './DirectComparisonSpecTable';
@@ -152,6 +153,39 @@ export const MediaTable: React.FC<MediaTableProps> = ({
   // Deletion Confirmation States
   const [spotToDelete, setSpotToDelete] = useState<MediaSpot | null>(null);
   const [isConfirmBulkDeleteOpen, setIsConfirmBulkDeleteOpen] = useState<boolean>(false);
+
+  // Print Mode State: ensures complete table content is rendered in print-friendly format
+  const [isPrintingAll, setIsPrintingAll] = useState<boolean>(false);
+
+  const handlePrintReport = () => {
+    // If in card or compare view mode, ensure list view is active for full tabular layout
+    if (viewMode !== 'list') {
+      setViewMode('list');
+    }
+    setIsPrintingAll(true);
+    // Allow DOM to re-render all rows in list view, then open native browser print dialog
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
+
+  useEffect(() => {
+    const handleBeforePrint = () => {
+      setIsPrintingAll(true);
+      setViewMode('list');
+    };
+    const handleAfterPrint = () => {
+      setIsPrintingAll(false);
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, []);
 
   const handleOpenComparisonModal = () => {
     if (selectedIds.size >= 1) {
@@ -336,6 +370,11 @@ export const MediaTable: React.FC<MediaTableProps> = ({
       currentPage * itemsPerPage
     );
   }, [sortedSpots, currentPage, itemsPerPage]);
+
+  // Displayed spots: when printing, render all sorted spots for a complete document; otherwise current page
+  const displayTableSpots = useMemo(() => {
+    return isPrintingAll ? sortedSpots : paginatedSpots;
+  }, [isPrintingAll, sortedSpots, paginatedSpots]);
 
   // Page selection helpers
   const pageSpotIds = useMemo(() => paginatedSpots.map((s) => s.id), [paginatedSpots]);
